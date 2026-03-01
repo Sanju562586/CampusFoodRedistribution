@@ -1,0 +1,67 @@
+
+[LOGIN DEBUG] Time: 2026-02-14T14:04:53.624Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: 0987654321San@@
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-14T14:06:42.117Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: 0987654321San@@
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-14T15:56:50.740Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: 0987654321San@@
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-23T04:41:21.752Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar126
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-23T04:41:33.596Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar612
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-23T04:41:38.756Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar126
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-23T04:44:25.111Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: 0987654321San@@
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-23T04:44:47.317Z
+[LOGIN DEBUG] Checking User: ramcharanpolabathina@gmail.com (Role: donor)
+[LOGIN DEBUG] Password Input: ramcharan
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-23T04:45:07.932Z
+[LOGIN DEBUG] Checking User: patiltejas2406@gmail.com (Role: student)
+[LOGIN DEBUG] Password Input: patiltejas
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+[LOGIN FAILED] User not found or Role Mismatch. Email: ramcharanpolabathina@gmail.com, Role: student, FoundRole: None
+
+[LOGIN DEBUG] Time: 2026-02-23T04:51:42.957Z
+[LOGIN DEBUG] Checking User: ramcharanpolabathina@gmail.com (Role: donor)
+[LOGIN DEBUG] Password Input: ramcharan
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-02-23T04:57:19.665Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: 0987654321San@@
+[LOGIN DEBUG] Valid: true
+------------------------------------------------

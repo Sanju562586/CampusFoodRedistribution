@@ -25,7 +25,7 @@ router.get(
     authorize("student"),
     async (req, res) => {
         try {
-            const user = await req.user.reload(); // Get latest preferences
+            const user = await require('../models').User.findByPk(req.user.id); // Get latest preferences
             const preferences = {
                 diet: user.dietary_preferences,
                 allergens: user.allergens || []

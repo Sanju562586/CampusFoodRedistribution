@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import api from "@/lib/axios";
 import { getAuth, clearAuth } from "@/lib/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { LayoutDashboard, History, PlusCircle, LogOutIcon, DollarSign, ScanLine, Utensils, Hash, Clock, MapPin, Tag, Camera } from "lucide-react";
+import { LayoutDashboard, History, PlusCircle, LogOutIcon, DollarSign, ScanLine, Utensils, Hash, Clock, MapPin, Tag, Camera, Upload, X } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { motion } from "framer-motion";
 import HistoryDetailsModal from "@/components/HistoryDetailsModal";
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 export default function DonorPage() {
     const [activeTab, setActiveTab] = useState<"post" | "pickup" | "history" | "analytics">("post");
@@ -29,6 +30,48 @@ export default function DonorPage() {
     const [message, setMessage] = useState("");
     const [image, setImage] = useState<string | null>(null);
 
+    // Camera State
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+
+    const startCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+            setIsCameraOpen(true);
+        } catch (err) {
+            console.error("Camera access denied:", err);
+            alert("Could not access camera. Please allow camera permissions.");
+        }
+    };
+
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        setIsCameraOpen(false);
+    };
+
+    const capturePhoto = () => {
+        if (videoRef.current) {
+            const canvas = document.createElement("canvas");
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+                ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL("image/jpeg");
+                setImage(dataUrl);
+            }
+            stopCamera();
+        }
+    };
+
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -45,6 +88,7 @@ export default function DonorPage() {
     const [pickupResult, setPickupResult] = useState<any>(null);
     const [pickupError, setPickupError] = useState("");
     const [pickupLoading, setPickupLoading] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
 
     // History State
     const [history, setHistory] = useState<any[]>([]);
@@ -110,14 +154,17 @@ export default function DonorPage() {
         }
     };
 
-    const handleVerifyPickup = async () => {
+    const handleVerifyPickup = async (overrideCode?: string) => {
+        const codeToVerify = overrideCode || pickupCode;
+        if (!codeToVerify) return;
+
         setPickupLoading(true);
         setPickupError("");
         setPickupResult(null);
 
         try {
             const res = await api.post("/reservation/pickup", {
-                reservation_code: pickupCode.trim().toUpperCase(),
+                reservation_code: codeToVerify.trim().toUpperCase(),
             });
             setPickupResult(res.data);
             setPickupCode(""); // Clear code after success
@@ -173,8 +220,18 @@ export default function DonorPage() {
 
                 {/* Main Content */}
                 <main className="flex-1 p-8 overflow-y-auto relative">
-                    <div className="absolute top-6 right-6 z-10">
+                    <div className="absolute top-6 right-6 z-10 flex items-center gap-3">
                         <ModeToggle />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                            onClick={() => { clearAuth(); window.location.href = "/login"; }}
+                        >
+                            <LogOutIcon className="mr-2 size-4 hidden sm:inline" />
+                            <span className="hidden sm:inline">Logout</span>
+                            <LogOutIcon className="size-4 sm:hidden" />
+                        </Button>
                     </div>
                     <motion.div
                         key={activeTab}
@@ -209,32 +266,69 @@ export default function DonorPage() {
                                                 {/* Image Upload - Enhanced */}
                                                 <div className="space-y-3">
                                                     <label className="text-sm font-semibold text-foreground/80 ml-1">Food Photo</label>
-                                                    <div className="group relative w-full aspect-square rounded-3xl overflow-hidden border-2 border-dashed border-border hover:border-green-500/50 transition-all bg-muted/20 hover:bg-muted/40 cursor-pointer">
-                                                        {image ? (
-                                                            <>
-                                                                <img src={image} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <div className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-full text-sm font-medium border border-white/30">
-                                                                        Change Photo
-                                                                    </div>
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground group-hover:text-green-600 transition-colors">
-                                                                <div className="w-16 h-16 rounded-full bg-background shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                                                    <Camera className="size-8 opacity-70" />
-                                                                </div>
-                                                                <p className="font-medium text-sm">Click to upload</p>
-                                                                <p className="text-xs opacity-60 mt-1">Supports JPG, PNG</p>
+                                                    {isCameraOpen ? (
+                                                        <div className="group relative w-full aspect-square md:aspect-[4/3] rounded-3xl overflow-hidden border-2 border-border shadow-sm bg-black">
+                                                            <video 
+                                                                ref={videoRef} 
+                                                                autoPlay 
+                                                                playsInline 
+                                                                className="w-full h-full object-cover" 
+                                                            />
+                                                            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-4 px-4 z-10">
+                                                                <button 
+                                                                    onClick={(e) => { e.preventDefault(); stopCamera(); }}
+                                                                    className="bg-red-500/80 hover:bg-red-600 text-white font-bold py-2.5 px-6 rounded-full backdrop-blur-md transition-colors shadow-lg"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                                <button 
+                                                                    onClick={(e) => { e.preventDefault(); capturePhoto(); }}
+                                                                    className="bg-white hover:bg-gray-200 text-black font-bold py-2.5 px-6 rounded-full backdrop-blur-md transition-colors shadow-xl flex items-center gap-2"
+                                                                >
+                                                                    <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse" /> Capture
+                                                                </button>
                                                             </div>
-                                                        )}
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={handleImageUpload}
-                                                            className="absolute inset-0 opacity-0 cursor-pointer z-20"
-                                                        />
-                                                    </div>
+                                                        </div>
+                                                    ) : image ? (
+                                                        <div className="group relative w-full aspect-square rounded-3xl overflow-hidden border-2 border-border shadow-sm">
+                                                            <img src={image} alt="Preview" className="w-full h-full object-cover" />
+                                                            <button 
+                                                                onClick={(e) => { e.preventDefault(); setImage(null); }}
+                                                                className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white p-2 w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-md transition-colors shadow-xl"
+                                                                title="Remove Photo"
+                                                            >
+                                                                <X className="size-5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-full aspect-square rounded-3xl flex flex-col items-center justify-center border-2 border-dashed border-border bg-muted/20 px-4 sm:px-6 text-center">
+                                                            <div className="w-16 h-16 rounded-full bg-background shadow-sm flex items-center justify-center mb-4">
+                                                                <Camera className="size-8 text-muted-foreground opacity-70" />
+                                                            </div>
+                                                            <p className="font-semibold text-foreground mb-1">Add a photo</p>
+                                                            <p className="text-xs text-muted-foreground/80 mb-6 max-w-[200px]">Take a fresh picture or upload from your device gallery</p>
+                                                            
+                                                            <div className="flex flex-col gap-3 w-full max-w-[220px]">
+                                                                <button 
+                                                                    onClick={(e) => { e.preventDefault(); startCamera(); }}
+                                                                    className="w-full flex items-center justify-center gap-2 bg-green-500/10 text-green-700 dark:text-green-500 hover:bg-green-500/20 py-3.5 rounded-xl font-bold transition-all border border-green-500/20 active:scale-95"
+                                                                >
+                                                                    <Camera className="size-5" /> Take Photo
+                                                                </button>
+                                                                <label className="w-full cursor-pointer relative overflow-hidden block">
+                                                                    <div className="w-full flex items-center justify-center gap-2 bg-blue-500/10 text-blue-700 dark:text-blue-500 hover:bg-blue-500/20 py-3.5 rounded-xl font-bold transition-all border border-blue-500/20 active:scale-95">
+                                                                        <Upload className="size-5" /> Upload File
+                                                                    </div>
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        onChange={handleImageUpload}
+                                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                                    />
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Fields */}
@@ -417,6 +511,41 @@ export default function DonorPage() {
                                     <h1 className="text-2xl font-bold mb-8 text-center">Pickup Verification 📷</h1>
 
                                     <Card className="p-6 space-y-6 shadow-md">
+                                        {/* QR Scanner Toggle */}
+                                        <div className="flex justify-center mb-2">
+                                            <Button 
+                                                variant={isScanning ? "destructive" : "outline"} 
+                                                onClick={() => setIsScanning(!isScanning)}
+                                                className="w-full"
+                                            >
+                                                <ScanLine className="mr-2 size-4" />
+                                                {isScanning ? "Stop Scanning" : "Scan QR Code"}
+                                            </Button>
+                                        </div>
+
+                                        {isScanning && (
+                                            <div className="rounded-xl overflow-hidden border-2 border-green-500/50 mb-6 aspect-square w-full">
+                                                <Scanner onScan={(result) => {
+                                                    if (result && result.length > 0) {
+                                                        const code = result[0].rawValue;
+                                                        if (code) {
+                                                            setPickupCode(code);
+                                                            setIsScanning(false);
+                                                            handleVerifyPickup(code);
+                                                        }
+                                                    }
+                                                }} />
+                                            </div>
+                                        )}
+
+                                        {!isScanning && (
+                                            <div className="flex items-center gap-4 py-2">
+                                                <div className="h-px flex-1 bg-border"></div>
+                                                <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Or enter manually</span>
+                                                <div className="h-px flex-1 bg-border"></div>
+                                            </div>
+                                        )}
+
                                         <div className="space-y-2">
                                             <label className="text-sm font-medium">Reservation Code</label>
                                             <Input
@@ -429,7 +558,7 @@ export default function DonorPage() {
 
                                         <Button
                                             className="w-full"
-                                            onClick={handleVerifyPickup}
+                                            onClick={() => handleVerifyPickup()}
                                             disabled={pickupLoading || !pickupCode}
                                         >
                                             {pickupLoading ? "Verifying..." : "Verify Pickup"}

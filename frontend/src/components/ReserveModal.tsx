@@ -125,15 +125,26 @@ export default function ReserveModal({ open, onClose, food }: Props) {
                 <div>
                   <h4 className="font-semibold text-foreground text-sm uppercase tracking-wider opacity-70 mb-1">Allergens & Diet</h4>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {food.allergens.length > 0 ? (
-                      food.allergens.map(a => (
-                        <Badge key={a} variant="outline" className="bg-background text-foreground/80 border-border/60">
-                          {a}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground italic">None listed</span>
-                    )}
+                    {(() => {
+                      let parsedAllergens: string[] = [];
+                      if (Array.isArray(food.allergens)) {
+                        parsedAllergens = food.allergens;
+                      } else if (typeof food.allergens === 'string') {
+                        try {
+                          parsedAllergens = JSON.parse(food.allergens || '[]');
+                        } catch(e) { /* ignore */ }
+                      }
+                      
+                      return parsedAllergens.length > 0 ? (
+                        parsedAllergens.map(a => (
+                          <Badge key={a} variant="outline" className="bg-background text-foreground/80 border-border/60">
+                            {a}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground italic">None listed</span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

@@ -169,8 +169,18 @@ export default function AdminPage() {
 
         {/* MAIN CONTENT */}
         <main className="flex-1 ml-72 p-10 relative">
-          <div className="absolute top-6 right-6 z-10">
+          <div className="absolute top-6 right-6 z-10 flex items-center gap-3">
             <ModeToggle />
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+              onClick={() => { clearAuth(); window.location.href = "/login"; }}
+            >
+              <LogOut className="mr-2 size-4 hidden sm:inline" />
+              <span className="hidden sm:inline">Logout</span>
+              <LogOut className="size-4 sm:hidden" />
+            </Button>
           </div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}

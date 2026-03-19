@@ -65,3 +65,27 @@
 [LOGIN DEBUG] Password Input: 0987654321San@@
 [LOGIN DEBUG] Valid: true
 ------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-06T05:19:15.465Z
+[LOGIN DEBUG] Checking User: patiltejas2406@gmail.com (Role: student)
+[LOGIN DEBUG] Password Input: patiltejas
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-06T05:19:56.543Z
+[LOGIN DEBUG] Checking User: ramcharanpolabathina@gmail.com (Role: donor)
+[LOGIN DEBUG] Password Input: ramcharan
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-06T05:20:06.833Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: 0987654321San@@
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-06T05:38:21.091Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: 0987654321San@@
+[LOGIN DEBUG] Valid: true
+------------------------------------------------

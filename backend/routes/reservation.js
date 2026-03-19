@@ -25,8 +25,11 @@ router.post(
         const t = await sequelize.transaction();
 
         try {
-            // 1. Find Food
-            const food = await Food.findByPk(foodId, { transaction: t });
+            // 1. Find Food (with pessimistic lock to prevent race conditions)
+            const food = await Food.findByPk(foodId, { 
+                transaction: t,
+                lock: t.LOCK.UPDATE 
+            });
 
             if (!food) {
                 await t.rollback();

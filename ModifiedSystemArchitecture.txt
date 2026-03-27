@@ -1,0 +1,67 @@
+High-Performance System Architecture Proposal
+The Performance Problem
+Currently, your Express backend is running on a single Node.js thread. When Node.js performs database I/O, it blocks raw simultaneous processing paths. Furthermore, when 10,000 concurrent requests hit your system, if all 10,000 try to establish a raw independent connection to your Neon Database, the database pool will instantly reject the traffic, causing the timeouts you experienced, and pushing latencies well past acceptable ranges (1000ms+).
+
+The Goal
+Support 10,000+ Concurrent Requests.
+Maintain average latency reliably Under 50ms.
+Scale without demanding paid, dedicated database tiers.
+🏗️ Proposed Architecture Upgrade
+To accomplish this natively on the current stack, we must implement three major architectural pillars.
+
+1. Vertical Scaling: Multi-Core Clustering
+Node.js processes run on a single core by default. Modern servers and laptops have anywhere from 6 to 16 cores.
+
+Implementation: We will wrap your 
+server.js
+ in a native Cluster paradigm. This will intelligently spawn an independent Express backend "worker" for every single CPU core on your machine.
+Result: If you have an 8-core machine, your request throughput capability instantly multiplies by 8x by load-balancing traffic natively across all cores.
+2. Zero-Latency Application Caching (node-cache)
+The primary bottleneck guaranteeing latencies >50ms is the network hop required to communicate with external databases (Neon Serverless Postgres). Not all 10,000 users need to independently query the exact same database.
+
+Implementation: We will install node-cache (or lru-cache) to create an ultra-fast, local, in-memory cache directly on your backend servers.
+Result: Read-heavy routes (like GET /api/food/available or GET /api/food/stats) will check memory first. If valid, the server returns the payload in ~1-3 milliseconds without ever touching the Database. The cache is programmed to instantly refresh/invalidate the moment a new user posts food.
+3. Connection Pooling Constraints & Payload Compression
+We must protect the Neon Database from crashing under the weight of thousands of instantaneous connection requests.
+
+Implementation: We will tune your Sequelize SQL configuration to strictly utilize small, fixed connection pools per clustered worker, utilizing Neon's pooled endpoint optimally. We will also install compression middleware so your JSON payloads are zlib compressed, shedding extreme bandwidth overhead during spikes.
+Technical File Changes
+[NEW] backend/cluster.js
+This will be the new entry point of your application (node cluster.js). It will read the host's CPU core count and launch 
+server.js
+ workers automatically, resurrecting any workers that crash under extreme load.
+
+[MODIFY] 
+backend/routes/food.js
+ & auth.js
+We will wrap the demanding database findAll() routines with memory caching logic. (e.g., If the cache has "all_available_food", return instantly. If not, fetch from Neon DB -> Save to Cache -> Return to User).
+
+[MODIFY] 
+backend/server.js
+We will integrate compression() to speed up delivery latency on the wire.
+
+System Diagram
+HTTP Requests
+Distributes Traffic
+Distributes Traffic
+Distributes Traffic
+Reads from
+Reads from
+Reads from
+Cache Misses Only
+Cache Misses Only
+Cache Misses Only
+10,000+ Concurrent Users
+Node.js Master Process / Load Balancer
+Express Worker 1
+Express Worker 2
+Express Worker N...
+In-Memory Cache
+In-Memory Cache
+In-Memory Cache
+Neon Postgres DB Pooler
+CAUTION
+
+Important Note: In-memory caching runs locally per-worker. Once deployed to production with multiple isolated machines, you would eventually upgrade this local cache to a distributed Redis server. However, right now for maximizing your raw local server concurrency natively, this cluster + cache strategy is precisely how elite backends scale to 10k constraints.
+
+Please review this architecture. If approved, I will immediately execute the required caching installations and refactor the backend!

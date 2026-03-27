@@ -2,12 +2,19 @@ const express = require("express");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 const { Food } = require("../models");
 const { Op } = require("sequelize");
+const NodeCache = require("node-cache");
+
+// Initialize rapid in-memory caching with 5 seconds Time-To-Live
+const foodCache = new NodeCache({ stdTTL: 5, checkperiod: 2 });
 
 const router = express.Router();
 
 // Admin food stats
 router.get("/stats", authenticate, authorize("admin"), async (req, res) => {
   try {
+    const cachedStats = foodCache.get("stats");
+    if (cachedStats) return res.json(cachedStats);
+
     const now = new Date();
     const activeCount = await Food.count({
       where: {
@@ -15,6 +22,8 @@ router.get("/stats", authenticate, authorize("admin"), async (req, res) => {
         quantity: { [Op.gt]: 0 }
       }
     });
+    
+    foodCache.set("stats", { activeCount });
     res.json({ activeCount });
   } catch (err) {
     console.error("Stats error:", err);
@@ -61,6 +70,9 @@ router.post(
       }
       req.io.emit("food_added", foodJson);
 
+      // Invalidate the cache to instantly reflect new posts
+      foodCache.flushAll();
+
       res.status(201).json(food);
     } catch (err) {
       console.error(err);
@@ -79,6 +91,9 @@ router.get(
   authorize(["student", "admin"]),
   async (req, res) => {
     try {
+      const cachedAvailable = foodCache.get("availableFood");
+      if (cachedAvailable) return res.json(cachedAvailable);
+
       const now = new Date();
       const availableFood = await Food.findAll({
         where: {
@@ -87,16 +102,60 @@ router.get(
         },
       });
 
-      // Parse allergens back to array
-      const formattedFood = availableFood.map(f => ({
-        ...f.toJSON(),
-        allergens: JSON.parse(f.allergens || "[]")
-      }));
+      // Parse allergens safely
+      const formattedFood = availableFood.map(f => {
+        const json = f.toJSON();
+        let parsedAllergens = [];
+        try {
+          if (typeof json.allergens === 'string') parsedAllergens = JSON.parse(json.allergens || "[]");
+          else if (Array.isArray(json.allergens)) parsedAllergens = json.allergens;
+        } catch(e) { parsedAllergens = []; }
+        return { ...json, allergens: parsedAllergens };
+      });
 
+      foodCache.set("availableFood", formattedFood);
       res.json(formattedFood);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Failed to fetch food" });
+    }
+  }
+);
+
+/**
+ * GET /api/food/all
+ * Admin only
+ */
+router.get(
+  "/all",
+  authenticate,
+  authorize(["admin"]),
+  async (req, res) => {
+    try {
+      const allFood = await Food.findAll({
+        order: [['createdAt', 'DESC']],
+        include: [{
+          model: require('../models').User,
+          as: 'donor',
+          attributes: ['name', 'email']
+        }]
+      });
+
+      // Parse allergens safely
+      const formattedFood = allFood.map(f => {
+        const json = f.toJSON();
+        let parsedAllergens = [];
+        try {
+          if (typeof json.allergens === 'string') parsedAllergens = JSON.parse(json.allergens || "[]");
+          else if (Array.isArray(json.allergens)) parsedAllergens = json.allergens;
+        } catch(e) { parsedAllergens = []; }
+        return { ...json, allergens: parsedAllergens };
+      });
+
+      res.json(formattedFood);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to fetch all food" });
     }
   }
 );

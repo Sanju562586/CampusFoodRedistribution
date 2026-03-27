@@ -20,6 +20,12 @@ module.exports = {
                 rejectUnauthorized: false,
                 servername: process.env.DB_HOSTNAME || process.env.DB_HOST
             }
+        },
+        pool: {
+            max: 5,
+            min: 0,
+            acquire: 30000,
+            idle: 10000
         }
     },
     test: {
@@ -49,6 +55,12 @@ module.exports = {
                 rejectUnauthorized: false,
                 servername: process.env.DB_HOSTNAME || process.env.DB_HOST // SNI required for Neon
             }
+        },
+        pool: {
+            max: 5,
+            min: 0,
+            acquire: 30000,
+            idle: 10000
         }
     }
 };

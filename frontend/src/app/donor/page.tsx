@@ -35,6 +35,12 @@ export default function DonorPage() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
+    useEffect(() => {
+        if (isCameraOpen && videoRef.current && streamRef.current) {
+            videoRef.current.srcObject = streamRef.current;
+        }
+    }, [isCameraOpen]);
+
     const startCamera = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
@@ -607,42 +613,53 @@ export default function DonorPage() {
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
-                                            {history.map((item: any) => (
-                                                <Card
-                                                    key={item.id}
-                                                    className="p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between hover:shadow-lg transition-shadow border-l-4 border-l-green-500 cursor-pointer active:scale-[0.99]"
-                                                    onClick={() => {
-                                                        setSelectedFood(item);
-                                                        setIsDetailsOpen(true);
-                                                    }}
-                                                >
-                                                    <div className="flex gap-4 items-center">
-                                                        <div className="h-16 w-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
-                                                            {item.image_url ? (
-                                                                <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
-                                                            ) : (
-                                                                <div className="h-full w-full flex items-center justify-center text-2xl">🍔</div>
-                                                            )}
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="font-bold text-lg">{item.name}</h3>
-                                                            <div className="flex gap-2 text-sm text-muted-foreground">
-                                                                <span className="flex items-center gap-1"><Hash className="size-3" /> Qty: {item.quantity}</span>
-                                                                <span className="flex items-center gap-1"><Clock className="size-3" /> Exp: {new Date(item.expiry_time).toLocaleDateString()}</span>
+                                            {history.map((item: any) => {
+                                                const isExpired = new Date(item.expiry_time) < new Date();
+                                                const isAvailable = item.quantity > 0;
+                                                const postDate = new Date(item.createdAt).toLocaleDateString();
+                                                const expiryDate = new Date(item.expiry_time).toLocaleDateString();
+
+                                                return (
+                                                    <Card
+                                                        key={item.id}
+                                                        className="p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between hover:shadow-lg transition-shadow border-l-4 border-l-green-500 cursor-pointer active:scale-[0.99]"
+                                                        onClick={() => {
+                                                            setSelectedFood(item);
+                                                            setIsDetailsOpen(true);
+                                                        }}
+                                                    >
+                                                        <div className="flex gap-4 items-center">
+                                                            <div className="h-16 w-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
+                                                                {item.image_url ? (
+                                                                    <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
+                                                                ) : (
+                                                                    <div className="h-full w-full flex items-center justify-center text-2xl">🍔</div>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="font-bold text-lg">{item.name}</h3>
+                                                                <div className="flex gap-2 text-sm text-muted-foreground">
+                                                                    <span className="flex items-center gap-1"><Hash className="size-3" /> Qty: {item.quantity}</span>
+                                                                    <span className="flex items-center gap-1"><Clock className="size-3" /> Exp: {expiryDate}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
 
-                                                    <div className="flex flex-col md:items-end gap-1">
-                                                        <Badge variant={item.quantity > 0 ? "default" : "secondary"} className={item.quantity > 0 ? "bg-green-500" : ""}>
-                                                            {item.quantity > 0 ? "Available" : "Claimed"}
-                                                        </Badge>
-                                                        <span className="text-xs text-muted-foreground">
-                                                            Posted: {new Date(item.createdAt).toLocaleDateString()}
-                                                        </span>
-                                                    </div>
-                                                </Card>
-                                            ))}
+                                                        <div className="flex flex-col md:items-end gap-1">
+                                                            {isExpired ? (
+                                                                <Badge variant="destructive">Expired</Badge>
+                                                            ) : isAvailable ? (
+                                                                <Badge variant="default" className="bg-green-500">Available</Badge>
+                                                            ) : (
+                                                                <Badge variant="secondary">Claimed</Badge>
+                                                            )}
+                                                            <span className="text-xs text-muted-foreground">
+                                                                Posted: {postDate}
+                                                            </span>
+                                                        </div>
+                                                    </Card>
+                                                );
+                                            })}
                                         </div>
                                     )}
 

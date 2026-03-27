@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
+const compression = require("compression");
 const { Server } = require("socket.io");
 
 const authRoutes = require("./routes/auth");
@@ -22,16 +23,11 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE"],
   // credentials: true // Disabled for wildcard origin
 }));
-// Debug Middleware: Log all requests
-app.use((req, res, next) => {
-  const logMsg = `[REQUEST] ${new Date().toISOString()} ${req.method} ${req.url}\n`;
-  try { fs.appendFileSync('request_debug.log', logMsg); } catch (e) { }
-  console.log(logMsg.trim());
-  next();
-});
+
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(compression()); // Compress all payloads for high throughput
 
 // Share io instance
 app.use((req, res, next) => {
@@ -39,9 +35,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const debugInfo = `Type: ${typeof authRoutes}\nStack: ${authRoutes.stack ? authRoutes.stack.length : "No Stack"}\n`;
-try { fs.writeFileSync('router_debug.log', debugInfo); } catch (e) { }
-console.log(debugInfo);
+
 
 // app.post("/api/auth/google") removed
 

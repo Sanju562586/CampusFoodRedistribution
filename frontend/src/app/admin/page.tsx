@@ -45,7 +45,7 @@ export default function AdminPage() {
     try {
       const [usersRes, foodRes, statsRes, aiRes] = await Promise.all([
         api.get("/auth/users").catch(() => ({ data: [] })),
-        api.get("/food/available").catch(() => ({ data: [] })),
+        api.get("/food/all").catch(() => ({ data: [] })),
         api.get("/food/stats").catch(() => ({ data: { activeCount: 0 } })),
         api.get("/ai/waste-prediction").catch(() => ({ data: null }))
       ]);
@@ -321,27 +321,43 @@ export default function AdminPage() {
               <div className="space-y-6">
                 <h2 className="text-3xl font-bold">Food Oversight</h2>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {food.map(f => (
-                    <Card key={f.id} className="p-4 bg-card border-border flex justify-between items-start">
-                      <div>
-                        <h4 className="font-bold text-lg mb-1">{f.name}</h4>
-                        <p className="text-sm text-muted-foreground mb-2">{f.dining_hall} • Qty: {f.quantity}</p>
-                        <div className="flex gap-2">
-                          {f.allergens && f.allergens.map((a: string) => (
-                            <Badge key={a} variant="outline" className="text-xs border-border text-muted-foreground">{a}</Badge>
-                          ))}
+                  {Array.isArray(food) && food.map((f: any) => {
+                    const isExpired = new Date(f.expiry_time) < new Date();
+                    const isAvailable = f.quantity > 0;
+                    
+                    return (
+                      <Card key={f.id} className="p-4 bg-card border-border flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-lg mb-1">{f.name}</h4>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            <span className="font-semibold text-foreground/80">{f.donor?.name || "Unknown Donor"}</span> • {f.dining_hall} • Qty: {f.quantity}
+                          </p>
+                          <div className="flex gap-2 mb-3">
+                            {isExpired ? (
+                              <Badge variant="destructive" className="text-[10px] uppercase font-bold tracking-wider">Expired</Badge>
+                            ) : isAvailable ? (
+                              <Badge variant="default" className="bg-green-500 text-[10px] uppercase font-bold tracking-wider">Available</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Claimed</Badge>
+                            )}
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            {Array.isArray(f.allergens) && f.allergens.map((a: string) => (
+                              <Badge key={a} variant="outline" className="text-xs border-border text-muted-foreground">{a}</Badge>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50"
-                        onClick={() => handleDeleteFood(f.id)}
-                      >
-                        Remove
-                      </Button>
-                    </Card>
-                  ))}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50"
+                          onClick={() => handleDeleteFood(f.id)}
+                        >
+                          Remove
+                        </Button>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             )}

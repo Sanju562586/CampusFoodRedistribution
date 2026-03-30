@@ -7,10 +7,17 @@ if (cluster.isPrimary || cluster.isMaster) {
   console.log(`🚀 Primary cluster ${process.pid} is running`);
   console.log(`⚙️  Spinning up ${numCPUs} Express workers to handle 10k concurrent requests...`);
 
-  // Fork workers.
-  for (let i = 0; i < numCPUs; i++) {
-    cluster.fork();
-  }
+  // Sync database once centrally before forking workers to avoid race conditions
+  const { sequelize } = require('./models');
+  sequelize.sync({ alter: true }).then(() => {
+    console.log("✅ Database synced centrally");
+    // Fork workers.
+    for (let i = 0; i < numCPUs; i++) {
+      cluster.fork();
+    }
+  }).catch(err => {
+    console.error("❌ Failed to sync database", err);
+  });
 
   // Handle worker crashes gracefully mapping a highly available service
   cluster.on('exit', (worker, code, signal) => {
@@ -19,6 +26,7 @@ if (cluster.isPrimary || cluster.isMaster) {
   });
 } else {
   // Workers share the TCP connection initialized in server.js
+  process.env.CLUSTER_MODE = "true";
   require('./server');
   console.log(`🟢 Worker ${process.pid} started`);
 }

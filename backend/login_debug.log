@@ -4,3 +4,66 @@
 [LOGIN DEBUG] Password Input: patiltejas
 [LOGIN DEBUG] Valid: true
 ------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:48:57.865Z
+[LOGIN DEBUG] Checking User: patiltejas2406@gmail.com (Role: student)
+[LOGIN DEBUG] Password Input: patiltejas
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+[LOGIN FAILED] User not found or Role Mismatch. Email: ramcharanpolabathina@gmail.com, Role: student, FoundRole: None
+[LOGIN FAILED] User not found or Role Mismatch. Email: ramcharanpolabathina@gmail.com, Role: student, FoundRole: None
+
+[LOGIN DEBUG] Time: 2026-03-27T20:53:59.847Z
+[LOGIN DEBUG] Checking User: ramcharanpolabathina@gmail.com (Role: donor)
+[LOGIN DEBUG] Password Input: ramcharanpolabathina
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:54:06.751Z
+[LOGIN DEBUG] Checking User: ramcharanpolabathina@gmail.com (Role: donor)
+[LOGIN DEBUG] Password Input: ramcharan
+[LOGIN DEBUG] Valid: true
+------------------------------------------------
+[LOGIN FAILED] User not found or Role Mismatch. Email: sanjaykumardupati6@gmail.com, Role: student, FoundRole: None
+
+[LOGIN DEBUG] Time: 2026-03-27T20:54:44.077Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar126
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:54:49.604Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:54:57.295Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:55:13.429Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar126
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:55:28.165Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar612
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:55:33.921Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar126
+[LOGIN DEBUG] Valid: false
+------------------------------------------------
+
+[LOGIN DEBUG] Time: 2026-03-27T20:58:56.157Z
+[LOGIN DEBUG] Checking User: sanjaykumardupati6@gmail.com (Role: admin)
+[LOGIN DEBUG] Password Input: SanjayKumar126
+[LOGIN DEBUG] Valid: true
+------------------------------------------------

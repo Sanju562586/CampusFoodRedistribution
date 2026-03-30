@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { motion } from "framer-motion";
+import Pusher from "pusher-js";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "users" | "food" | "analytics">("overview");
@@ -31,11 +32,34 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
 
-  // Fetch Data on Load & Poll every 30s
+  // Fetch Data on Load & listen via Pusher
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 30000);
-    return () => clearInterval(interval);
+
+    // Pusher real-time connection
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    });
+
+    const channel = pusher.subscribe("food-channel");
+
+    channel.bind("food_added", (newFood: any) => {
+      setFood((prevFood) => [newFood, ...prevFood]);
+      setStats((prev) => ({ ...prev, activeFoodCount: prev.activeFoodCount + 1 }));
+    });
+
+    channel.bind("food_update", (data: { foodId: number, quantity: number }) => {
+      setFood((prevFood) =>
+        prevFood.map((f) =>
+          f.id === data.foodId ? { ...f, quantity: data.quantity } : f
+        )
+      );
+    });
+
+    return () => {
+      channel.unbind_all();
+      channel.unsubscribe();
+    };
   }, []);
 
   const fetchDashboardData = async () => {

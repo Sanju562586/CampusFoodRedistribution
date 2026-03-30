@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const compression = require("compression");
-const { Server } = require("socket.io");
+const Pusher = require("pusher");
 
 const authRoutes = require("./routes/auth");
 const foodRoutes = require("./routes/food");
@@ -11,11 +11,12 @@ const foodRoutes = require("./routes/food");
 const app = express();
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"],
-  },
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID || "app_id",
+  key: process.env.PUSHER_KEY || "key",
+  secret: process.env.PUSHER_SECRET || "secret",
+  cluster: process.env.PUSHER_CLUSTER || "mt1",
+  useTLS: true
 });
 
 app.use(cors({
@@ -29,9 +30,9 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(compression()); // Compress all payloads for high throughput
 
-// Share io instance
+// Share Pusher instance
 app.use((req, res, next) => {
-  req.io = io;
+  req.pusher = pusher;
   next();
 });
 
@@ -53,17 +54,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Internal Server Error" });
 });
 
-io.on("connection", (socket) => {
-  console.log("Websocket connected:", socket.id);
-});
-
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 const { sequelize } = require("./models");
 
-// Sync database before starting server
-sequelize.sync({ alter: true }).then(() => {
-  console.log("✅ Database synced");
-  server.listen(PORT, () => {
-    console.log(`✅ Backend running on http://localhost:${PORT}`);
-  });
-});
+// Support local execution or Vercel serverless export
+if (process.env.NODE_ENV !== "test" && (require.main === module || process.env.CLUSTER_MODE === "true")) {
+  if (process.env.CLUSTER_MODE === "true") {
+    server.listen(PORT, () => {
+      console.log(`✅ Worker listening on port ${PORT}`);
+    });
+  } else {
+    // Sync database before starting local server
+    sequelize.sync({ alter: true }).then(() => {
+      console.log("✅ Database synced");
+      server.listen(PORT, () => {
+        console.log(`✅ Serverless Proxy backend running on http://localhost:${PORT}`);
+      });
+    });
+  }
+}
+
+// Crucial: export the app strictly for Vercel's serverless environment
+module.exports = app;

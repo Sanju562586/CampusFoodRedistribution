@@ -7,7 +7,7 @@ import FoodCard from "@/components/FoodCard";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { getAuth } from "@/lib/auth";
-import { io } from "socket.io-client";
+import Pusher from "pusher-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProfileTab from "@/components/ProfileTab";
 import { Sparkles, Utensils, Settings } from "lucide-react";
@@ -57,14 +57,14 @@ function DashboardContent() {
   useEffect(() => {
     fetchData();
 
-    // Socket connection
-    const socket = io("http://localhost:5000");
-
-    socket.on("connect", () => {
-      console.log("Connected to websocket");
+    // Pusher real-time connection
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
     });
 
-    socket.on("food_update", (data: { foodId: number, quantity: number }) => {
+    const channel = pusher.subscribe("food-channel");
+
+    channel.bind("food_update", (data: { foodId: number, quantity: number }) => {
       setFoods((prevFoods) =>
         prevFoods.map(food =>
           food.id === data.foodId ? { ...food, quantity: data.quantity } : food
@@ -72,12 +72,13 @@ function DashboardContent() {
       );
     });
 
-    socket.on("food_added", (newFood: any) => {
+    channel.bind("food_added", (newFood: any) => {
       setFoods((prevFoods) => [newFood, ...prevFoods]);
     });
 
     return () => {
-      socket.disconnect();
+      channel.unbind_all();
+      channel.unsubscribe();
     };
   }, []);
 

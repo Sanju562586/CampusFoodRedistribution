@@ -98,12 +98,12 @@ function DashboardContent() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="food" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg px-6">
-            <Utensils className="mr-2 size-4" /> Available Food
+        <TabsList className="bg-muted/50 p-1 rounded-xl flex flex-wrap h-auto w-full md:w-auto justify-start">
+          <TabsTrigger value="food" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg px-4 md:px-6 flex-1 md:flex-initial">
+            <Utensils className="mr-2 size-4" /> Available
           </TabsTrigger>
-          <TabsTrigger value="profile" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg px-6">
-            <Settings className="mr-2 size-4" /> Profile & Preferences
+          <TabsTrigger value="profile" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg px-4 md:px-6 flex-1 md:flex-initial">
+            <Settings className="mr-2 size-4" /> Profile
           </TabsTrigger>
         </TabsList>
 

@@ -81,8 +81,8 @@ export default function Home() {
               <span className="inline-block px-3 py-1 rounded-full bg-white/10 border border-white/10 text-xs font-medium text-purple-300">
                 🚀 Sustinability Revolution
               </span>
-              <h1 className="text-5xl md:text-6xl font-bold leading-tight bg-gradient-to-br from-white via-white/90 to-white/50 bg-clip-text text-transparent">
-                Connecting Surplus <br /> with Students.
+              <h1 className="text-4xl md:text-6xl font-bold leading-tight bg-gradient-to-br from-white via-white/90 to-white/50 bg-clip-text text-transparent">
+                Connecting Surplus <br className="hidden md:block" /> with Students.
               </h1>
               <p className="text-lg text-white/50 max-w-md">
                 Join our mission to reduce food waste. Whether you're hungry or helping, there's a place for you.
@@ -125,8 +125,8 @@ export default function Home() {
                   transition={{ delay: idx * 0.1 }}
                   className="group cursor-pointer"
                 >
-                  <div className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all backdrop-blur-md flex gap-5 items-start">
-                    <div className="shrink-0 w-24 h-24 bg-white/10 rounded-xl overflow-hidden relative">
+                  <div className="p-4 md:p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all backdrop-blur-md flex flex-col sm:flex-row gap-4 md:gap-5 items-start">
+                    <div className="shrink-0 w-16 h-16 md:w-24 md:h-24 bg-white/10 rounded-xl overflow-hidden relative">
                       {/* Placeholder for blog image if actual image fails or is dynamic */}
                       <div className="absolute inset-0 flex items-center justify-center text-4xl">
                         {blog.category === 'Impact' ? '🌍' : '🏆'}

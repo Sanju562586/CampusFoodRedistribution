@@ -13,4 +13,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Token is invalid/expired or user was deleted
+      if (typeof window !== "undefined" && !window.location.pathname.includes('/login')) {
+        localStorage.removeItem("campus_food_auth");
+        sessionStorage.removeItem("campus_food_auth");
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

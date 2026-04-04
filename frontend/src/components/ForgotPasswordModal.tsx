@@ -9,7 +9,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import api from "@/lib/axios";
-import { Loader2, ArrowRight, CheckCircle2, KeyRound, Mail, Lock, X } from "lucide-react";
+import { Loader2, ArrowRight, CheckCircle2, KeyRound, Mail, Lock, X, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ForgotPasswordModalProps {
@@ -25,6 +25,8 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [success, setSuccess] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     // Step 1: Send OTP
     const handleSendOtp = async () => {
@@ -203,24 +205,38 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
                                                     <Lock className="size-5 text-white/30 group-focus-within:text-orange-400 transition-colors duration-300" />
                                                 </div>
                                                 <Input
-                                                    type="password"
+                                                    type={showNewPassword ? "text" : "password"}
                                                     placeholder="New password"
                                                     value={newPassword}
                                                     onChange={(e) => setNewPassword(e.target.value)}
-                                                    className="pl-12 h-14 bg-white/5 border-white/5 text-white placeholder:text-white/20 rounded-2xl focus:bg-white/10 focus:border-orange-500/30 focus:ring-4 focus:ring-orange-500/10 transition-all duration-300"
+                                                    className="pl-12 pr-12 h-14 bg-white/5 border-white/5 text-white placeholder:text-white/20 rounded-2xl focus:bg-white/10 focus:border-orange-500/30 focus:ring-4 focus:ring-orange-500/10 transition-all duration-300"
                                                 />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/60 hover:bg-black p-1.5 rounded-full focus:outline-none transition-all duration-300 shadow-sm"
+                                                >
+                                                    {showNewPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                                                </button>
                                             </div>
                                             <div className="relative group">
                                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                     <Lock className="size-5 text-white/30 group-focus-within:text-orange-400 transition-colors duration-300" />
                                                 </div>
                                                 <Input
-                                                    type="password"
+                                                    type={showConfirmPassword ? "text" : "password"}
                                                     placeholder="Confirm password"
                                                     value={confirmPassword}
                                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                                    className="pl-12 h-14 bg-white/5 border-white/5 text-white placeholder:text-white/20 rounded-2xl focus:bg-white/10 focus:border-orange-500/30 focus:ring-4 focus:ring-orange-500/10 transition-all duration-300"
+                                                    className="pl-12 pr-12 h-14 bg-white/5 border-white/5 text-white placeholder:text-white/20 rounded-2xl focus:bg-white/10 focus:border-orange-500/30 focus:ring-4 focus:ring-orange-500/10 transition-all duration-300"
                                                 />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/60 hover:bg-black p-1.5 rounded-full focus:outline-none transition-all duration-300 shadow-sm"
+                                                >
+                                                    {showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                                                </button>
                                             </div>
                                         </div>
                                         <Button

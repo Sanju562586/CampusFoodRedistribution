@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { saveAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Github, Twitter, Facebook } from "lucide-react";
+import { ArrowLeft, Github, Twitter, Facebook, Eye, EyeOff } from "lucide-react";
 import api from "@/lib/axios"; // Fixed import
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
 
@@ -30,6 +30,8 @@ export default function LoginPage() {
   const [location, setLocation] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // OTP Verification State
   const [showOtpInput, setShowOtpInput] = useState(false);
@@ -187,7 +189,7 @@ export default function LoginPage() {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative z-10 w-full max-w-[1100px] aspect-[16/9] min-h-[600px] flex rounded-[40px] overflow-hidden shadow-2xl border border-white/5 bg-white/5 backdrop-blur-2xl"
+        className="relative z-10 w-full max-w-[1100px] lg:aspect-[16/9] min-h-[500px] lg:min-h-[600px] flex flex-col lg:flex-row rounded-[30px] lg:rounded-[40px] overflow-hidden shadow-2xl border border-white/5 bg-white/5 backdrop-blur-2xl my-10 lg:my-0 mt-20 lg:mt-0"
       >
         {/* Loading Overlay */}
         {isLoading && mode === 'register' && !showOtpInput && (
@@ -242,7 +244,7 @@ export default function LoginPage() {
         )}
 
         {/* LEFT COLUMN: Form */}
-        <div className="w-full lg:w-[55%] p-12 flex flex-col items-center relative bg-gradient-to-br from-white/5 to-transparent overflow-y-auto max-h-[100%] scrollbar-hide">
+        <div className="w-full lg:w-[55%] p-6 py-12 lg:p-12 flex flex-col items-center relative bg-gradient-to-br from-white/5 to-transparent overflow-y-auto max-h-[100%] scrollbar-hide">
 
           <div className="max-w-[400px] mx-auto w-full">
             <div className="mb-10">
@@ -305,22 +307,38 @@ export default function LoginPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="relative">
                     <Input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Password"
                       value={password} onChange={e => setPassword(e.target.value)}
-                      className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6"
+                      className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6 pr-12"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/60 hover:bg-black p-2 rounded-full focus:outline-none transition-all shadow-sm"
+                    >
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
                   </div>
 
                   {mode === 'register' && (
-                    <Input
-                      type="password"
-                      placeholder="Confirm Password"
-                      value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
-                      className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6"
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm Password"
+                        value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                        className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6 pr-12"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/60 hover:bg-black p-2 rounded-full focus:outline-none transition-all shadow-sm"
+                      >
+                        {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
                   )}
                 </>
               )}

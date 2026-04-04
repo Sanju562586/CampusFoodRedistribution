@@ -164,7 +164,7 @@ export default function AdminPage() {
       <div className="flex min-h-screen bg-background text-foreground font-sans selection:bg-purple-500/30">
 
         {/* SIDEBAR */}
-        <aside className="w-72 border-r border-border p-6 flex flex-col bg-card/40 backdrop-blur-xl fixed h-full z-50">
+        <aside className="w-72 border-r border-border p-6 hidden lg:flex flex-col bg-card/40 backdrop-blur-xl fixed h-full z-50">
           <div className="mb-10 flex items-center gap-3 px-2">
             <div className="h-10 w-10 bg-gradient-to-tr from-purple-600 to-blue-500 rounded-lg flex items-center justify-center font-bold text-xl">
               A
@@ -192,7 +192,7 @@ export default function AdminPage() {
         </aside>
 
         {/* MAIN CONTENT */}
-        <main className="flex-1 ml-72 p-10 relative">
+        <main className="flex-1 lg:ml-72 p-4 sm:p-10 relative mb-24 lg:mb-0">
           <div className="absolute top-6 right-6 z-10 flex items-center gap-3">
             <ModeToggle />
             <Button
@@ -264,8 +264,8 @@ export default function AdminPage() {
                 {/* Donors Section */}
                 <div>
                   <h3 className="text-xl font-bold mb-4 text-green-400">Donors</h3>
-                  <div className="rounded-2xl border border-border overflow-hidden bg-card mb-8">
-                    <table className="w-full text-left">
+                  <div className="rounded-2xl border border-border overflow-x-auto bg-card mb-8">
+                    <table className="w-full text-left min-w-[600px]">
                       <thead className="bg-muted text-muted-foreground text-xs uppercase font-semibold">
                         <tr>
                           <th className="p-4">User</th>
@@ -303,8 +303,8 @@ export default function AdminPage() {
                 {/* Students Section */}
                 <div>
                   <h3 className="text-xl font-bold mb-4 text-blue-400">Students</h3>
-                  <div className="rounded-2xl border border-border overflow-hidden bg-card">
-                    <table className="w-full text-left">
+                  <div className="rounded-2xl border border-border overflow-x-auto bg-card">
+                    <table className="w-full text-left min-w-[600px]">
                       <thead className="bg-muted text-muted-foreground text-xs uppercase font-semibold">
                         <tr>
                           <th className="p-4">User</th>
@@ -497,6 +497,22 @@ export default function AdminPage() {
             )}
           </motion.div>
         </main>
+        
+        {/* MOBILE BOTTOM NAV */}
+        <nav className="fixed bottom-0 w-full bg-card/90 backdrop-blur-md border-t border-border flex lg:hidden items-center justify-around p-2 z-50 pb-safe">
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'overview' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('overview')}>
+              <LayoutDashboard size={20} />
+            </Button>
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'users' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('users')}>
+              <Users size={20} />
+            </Button>
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'food' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('food')}>
+              <Utensils size={20} />
+            </Button>
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'analytics' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('analytics')}>
+              <TrendingUp size={20} />
+            </Button>
+        </nav>
       </div>
     </ProtectedRoute>
   );

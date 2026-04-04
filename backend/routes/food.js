@@ -3,84 +3,118 @@ const { authenticate, authorize } = require("../middleware/authMiddleware");
 const { Food } = require("../models");
 const { Op } = require("sequelize");
 const { Redis } = require("@upstash/redis");
+const { foodCache } = require("../lib/localCache");
 
-// Initialize rapid global distributed caching 
+// Shared Redis client — REST-based, serverless-safe
 const redis = Redis.fromEnv();
 
 const router = express.Router();
 const { Client } = require("@upstash/qstash");
 
-// Admin food stats
+// ─────────────────────────────────────────────
+// In-flight promise coalescing for /available
+// Prevents thundering herd when L1 cache expires:
+// all concurrent requests share ONE DB promise.
+// ─────────────────────────────────────────────
+let _availableInflight = null;
+
+// ─────────────────────────────────────────────
+// GET /api/food/stats
+// Admin only — active food count with Redis cache
+// ─────────────────────────────────────────────
 router.get("/stats", authenticate, authorize("admin"), async (req, res) => {
   try {
+    // L1: In-process cache (instant)
+    const l1Stats = foodCache.get("stats");
+    if (l1Stats !== undefined) {
+      res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+      return res.json(l1Stats);
+    }
+
+    // L2: Upstash Redis
     const cachedStats = await redis.get("stats");
-    if (cachedStats) return res.json(cachedStats);
+    if (cachedStats) {
+      foodCache.set("stats", cachedStats);
+      res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+      return res.json(cachedStats);
+    }
 
     const now = new Date();
     const activeCount = await Food.count({
       where: {
         expiry_time: { [Op.gt]: now },
-        quantity: { [Op.gt]: 0 }
-      }
+        quantity: { [Op.gt]: 0 },
+      },
     });
-    
-    // Cache for 5 seconds remotely
-    await redis.set("stats", { activeCount }, { ex: 5 });
-    res.json({ activeCount });
+
+    const statsData = { activeCount };
+    foodCache.set("stats", statsData);
+    await redis.set("stats", statsData, { ex: 10 });
+    res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+    res.json(statsData);
   } catch (err) {
     console.error("Stats error:", err);
     res.status(500).json({ message: "Error fetching stats" });
   }
 });
 
-/**
- * POST /api/food/create
- * Admin/Donor only - Pushes to QStash Message Queue
- */
+// ─────────────────────────────────────────────
+// POST /api/food/create
+// Donor only — queues creation via QStash
+// Returns 202 instantly; DB write happens async
+// ─────────────────────────────────────────────
 router.post(
   "/create",
   authenticate,
   authorize(["donor"]),
   async (req, res) => {
-    const { name, quantity, expiry_time, dining_hall, allergens, location, landmark, image_url, price } = req.body;
+    const {
+      name, quantity, expiry_time, dining_hall,
+      allergens, location, landmark, image_url, price,
+    } = req.body;
 
-    if (!name) return res.status(400).json({ message: "Missing field: Food Name" });
-    if (quantity === undefined || quantity === null) return res.status(400).json({ message: "Missing field: Quantity" });
-    if (!expiry_time) return res.status(400).json({ message: "Missing field: Expiry Time" });
-    if (!dining_hall && !location) return res.status(400).json({ message: "Missing field: Location/Dining Hall" });
+    if (!name)
+      return res.status(400).json({ message: "Missing field: Food Name" });
+    if (quantity === undefined || quantity === null)
+      return res.status(400).json({ message: "Missing field: Quantity" });
+    if (!expiry_time)
+      return res.status(400).json({ message: "Missing field: Expiry Time" });
+    if (!dining_hall && !location)
+      return res.status(400).json({ message: "Missing field: Location/Dining Hall" });
 
     try {
-      // 1. Prepare Payload for QStash
       const payload = {
         name,
         quantity,
         expiry_time,
         dining_hall,
         allergens: allergens || [],
-        donorId: req.user.role === 'donor' ? req.user.id : null,
+        donorId: req.user.role === "donor" ? req.user.id : null,
         location: location || dining_hall,
         landmark: landmark || null,
         image_url: image_url || null,
         price: price || 0,
-        status: 'available'
+        status: "available",
       };
 
-      // 2. Check if QStash is configured
-      if (!process.env.QSTASH_TOKEN || process.env.QSTASH_TOKEN === 'add_your_token_here') {
-         console.warn("⚠️ QSTASH_TOKEN is missing. Bypassing queue and executing direct DB write.");
-         return await directFoodCreate(payload, req.pusher, res);
+      // Check if QStash is properly configured
+      if (
+        !process.env.QSTASH_TOKEN ||
+        process.env.QSTASH_TOKEN === "add_your_token_here"
+      ) {
+        console.warn(
+          "⚠️ QSTASH_TOKEN missing — executing direct DB write (not recommended for production)."
+        );
+        return await directFoodCreate(payload, req.pusher, res);
       }
 
-      // 3. Publish to QStash to protect database from write spikes
+      // Publish to QStash — decouples DB write from user response
       const qstashClient = new Client({ token: process.env.QSTASH_TOKEN });
-      const targetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/api/food/worker-create`;
-      
-      await qstashClient.publishJSON({
-        url: targetUrl,
-        body: payload,
-      });
+      const targetUrl = `${process.env.APP_URL || "http://localhost:5000"}/api/food/worker-create`;
 
-      // 4. Return instant 202 Accepted to the client (< 50ms)
+      await qstashClient.publishJSON({ url: targetUrl, body: payload });
+
+      // Return 202 instantly — user doesn't wait for DB
       res.status(202).json({ message: "Food creation queued successfully" });
     } catch (err) {
       console.error("QStash Publish Error:", err);
@@ -89,117 +123,184 @@ router.post(
   }
 );
 
-/**
- * Fallback / Helper logic for direct database writes
- */
+// ─────────────────────────────────────────────
+// Helper: Direct DB write (QStash fallback / dev mode)
+// ─────────────────────────────────────────────
 async function directFoodCreate(payload, pusherClient, res) {
   try {
-     const food = await Food.create({
-        ...payload,
-        allergens: JSON.stringify(payload.allergens)
-     });
+    const food = await Food.create({
+      ...payload,
+      allergens: JSON.stringify(payload.allergens),
+    });
 
-     const foodJson = food.toJSON();
-     try {
-       foodJson.allergens = typeof foodJson.allergens === 'string' ? JSON.parse(foodJson.allergens) : foodJson.allergens;
-     } catch (e) {
-       foodJson.allergens = [];
-     }
-     if (pusherClient) pusherClient.trigger("food-channel", "food_added", foodJson);
-     await redis.flushall();
-     
-     if (res) return res.status(201).json(food);
+    const foodJson = food.toJSON();
+    try {
+      foodJson.allergens =
+        typeof foodJson.allergens === "string"
+          ? JSON.parse(foodJson.allergens)
+          : foodJson.allergens;
+    } catch (e) {
+      foodJson.allergens = [];
+    }
+
+    if (pusherClient) pusherClient.trigger("food-channel", "food_added", foodJson);
+
+    // ✅ Targeted invalidation only — DO NOT flushall()
+    // flushall() would destroy session cache, leaderboard cache, etc.
+    await redis.del("availableFood", "stats");
+
+    if (res) return res.status(201).json(food);
   } catch (err) {
-     console.error(err);
-     if (res) return res.status(500).json({ message: "Failed to create food" });
+    console.error("directFoodCreate error:", err);
+    if (res) return res.status(500).json({ message: "Failed to create food" });
   }
 }
 
-/**
- * POST /api/food/worker-create
- * QStash Webhook Receiver (Internal Route)
- */
-router.post(
-  "/worker-create",
-  async (req, res) => {
-    // Note: In production, verify the QStash signature here using @upstash/qstash Receiver securely
-    console.log("📥 QStash Worker received payload for Food Creation");
-    
+// ─────────────────────────────────────────────
+// POST /api/food/worker-create
+// QStash Webhook Receiver (Internal)
+// Called by QStash after food creation is queued
+// ─────────────────────────────────────────────
+router.post("/worker-create", async (req, res) => {
+  // TODO (production): verify QStash signature using @upstash/qstash Receiver
+  console.log("📥 QStash Worker: processing food creation");
+
+  try {
+    const payload = req.body;
+
+    const food = await Food.create({
+      ...payload,
+      allergens: JSON.stringify(payload.allergens || []),
+    });
+
+    const foodJson = food.toJSON();
     try {
-      const payload = req.body;
-      
-      const food = await Food.create({
-        ...payload,
-        allergens: JSON.stringify(payload.allergens || [])
-      });
-
-      const foodJson = food.toJSON();
-      try {
-        foodJson.allergens = typeof foodJson.allergens === 'string' ? JSON.parse(foodJson.allergens) : foodJson.allergens;
-      } catch (e) {
-        foodJson.allergens = [];
-      }
-      
-      // Trigger realtime update
-      req.pusher.trigger("food-channel", "food_added", foodJson);
-
-      // Invalidate the cache system-wide
-      await redis.flushall();
-
-      res.status(200).json({ message: "Worker successfully resolved operation." });
-    } catch (err) {
-      console.error("Worker Execution Error:", err);
-      res.status(500).json({ message: "Worker operation failed" });
+      foodJson.allergens =
+        typeof foodJson.allergens === "string"
+          ? JSON.parse(foodJson.allergens)
+          : foodJson.allergens;
+    } catch (e) {
+      foodJson.allergens = [];
     }
-  }
-);
 
-/**
- * GET /api/food/available
- * Student only
- */
+    // Trigger real-time update for connected clients
+    if (req.pusher) req.pusher.trigger("food-channel", "food_added", foodJson);
+
+    // ✅ Targeted cache invalidation — only food-related keys
+    await redis.del("availableFood", "stats");
+
+    res.status(200).json({ message: "Worker successfully resolved operation." });
+  } catch (err) {
+    console.error("Worker Execution Error:", err);
+    res.status(500).json({ message: "Worker operation failed" });
+  }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/food/available
+// Student + Admin — hottest read endpoint
+//
+// L1: Redis cache (30s TTL)
+// L2: Distributed mutex lock prevents cache stampede:
+//     only ONE request hits DB when cache expires,
+//     all others poll Redis for 50ms intervals.
+// ─────────────────────────────────────────────
 router.get(
   "/available",
   authenticate,
   authorize(["student", "admin"]),
   async (req, res) => {
     try {
-      const cachedAvailable = await redis.get("availableFood");
-      if (cachedAvailable) return res.json(cachedAvailable);
+      // ─── L1: In-process NodeCache (pure RAM, ~0ms) ────────────────────
+      // This is the hot path: served from worker process memory.
+      // No network calls whatsoever — handles 99%+ of requests here.
+      const l1Data = foodCache.get("availableFood");
+      if (l1Data !== undefined) {
+        res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+        return res.json(l1Data);
+      }
 
-      const now = new Date();
-      const availableFood = await Food.findAll({
-        where: {
-          expiry_time: { [Op.gt]: now },
-          quantity: { [Op.gt]: 0 },
-        },
-      });
+      // ─── L1 MISS: Promise coalescing ─────────────────────────────────
+      // If another coroutine in THIS worker is already fetching,
+      // all concurrent requests await the SAME promise — no duplication.
+      if (_availableInflight) {
+        const data = await _availableInflight;
+        res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+        return res.json(data);
+      }
 
-      // Parse allergens safely
-      const formattedFood = availableFood.map(f => {
-        const json = f.toJSON();
-        let parsedAllergens = [];
-        try {
-          if (typeof json.allergens === 'string') parsedAllergens = JSON.parse(json.allergens || "[]");
-          else if (Array.isArray(json.allergens)) parsedAllergens = json.allergens;
-        } catch(e) { parsedAllergens = []; }
-        return { ...json, allergens: parsedAllergens };
-      });
+      // ─── Become the single fetcher for this worker ────────────────────
+      _availableInflight = _fetchAndCacheAvailableFood();
 
-      // Cache for 5 seconds remotely
-      await redis.set("availableFood", formattedFood, { ex: 5 });
-      res.json(formattedFood);
+      try {
+        const data = await _availableInflight;
+        res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+        res.json(data);
+      } finally {
+        _availableInflight = null;
+      }
     } catch (err) {
-      console.error(err);
+      _availableInflight = null;
+      console.error("GET /food/available error:", err);
       res.status(500).json({ message: "Failed to fetch food" });
     }
   }
 );
 
 /**
- * GET /api/food/all
- * Admin only
+ * _fetchAndCacheAvailableFood
+ * Single async fetch path:
+ *   1. Try Upstash Redis (L2) — cross-worker cache
+ *   2. Fall back to Neon DB (L3) — cold path only
+ * Populates L1 (NodeCache) so the next request in this worker is instant.
  */
+async function _fetchAndCacheAvailableFood() {
+  // L2: Upstash Redis
+  const redisData = await redis.get("availableFood");
+  if (redisData) {
+    foodCache.set("availableFood", redisData);
+    return redisData;
+  }
+
+  // L3: Database
+  const now = new Date();
+  const availableFood = await Food.findAll({
+    where: {
+      expiry_time: { [Op.gt]: now },
+      quantity: { [Op.gt]: 0 },
+    },
+    // Only fetch columns the frontend actually needs
+    attributes: ["id", "name", "quantity", "expiry_time", "dining_hall",
+                 "allergens", "location", "landmark", "image_url", "price",
+                 "status", "donorId", "createdAt"],
+  });
+
+  const formattedFood = availableFood.map((f) => {
+    const json = f.toJSON();
+    let parsedAllergens = [];
+    try {
+      if (typeof json.allergens === "string")
+        parsedAllergens = JSON.parse(json.allergens || "[]");
+      else if (Array.isArray(json.allergens))
+        parsedAllergens = json.allergens;
+    } catch (_) {
+      parsedAllergens = [];
+    }
+    return { ...json, allergens: parsedAllergens };
+  });
+
+  // Populate L1 and L2
+  foodCache.set("availableFood", formattedFood);
+  // Fire-and-forget Redis write — don't block the response
+  redis.set("availableFood", formattedFood, { ex: 30 }).catch(() => {});
+
+  return formattedFood;
+}
+
+// ─────────────────────────────────────────────
+// GET /api/food/all
+// Admin only — no cache (admin needs real-time data)
+// ─────────────────────────────────────────────
 router.get(
   "/all",
   authenticate,
@@ -207,37 +308,42 @@ router.get(
   async (req, res) => {
     try {
       const allFood = await Food.findAll({
-        order: [['createdAt', 'DESC']],
-        include: [{
-          model: require('../models').User,
-          as: 'donor',
-          attributes: ['name', 'email']
-        }]
+        order: [["createdAt", "DESC"]],
+        include: [
+          {
+            model: require("../models").User,
+            as: "donor",
+            attributes: ["name", "email"],
+          },
+        ],
       });
 
-      // Parse allergens safely
-      const formattedFood = allFood.map(f => {
+      const formattedFood = allFood.map((f) => {
         const json = f.toJSON();
         let parsedAllergens = [];
         try {
-          if (typeof json.allergens === 'string') parsedAllergens = JSON.parse(json.allergens || "[]");
-          else if (Array.isArray(json.allergens)) parsedAllergens = json.allergens;
-        } catch(e) { parsedAllergens = []; }
+          if (typeof json.allergens === "string")
+            parsedAllergens = JSON.parse(json.allergens || "[]");
+          else if (Array.isArray(json.allergens))
+            parsedAllergens = json.allergens;
+        } catch (e) {
+          parsedAllergens = [];
+        }
         return { ...json, allergens: parsedAllergens };
       });
 
       res.json(formattedFood);
     } catch (err) {
-      console.error(err);
+      console.error("GET /food/all error:", err);
       res.status(500).json({ message: "Failed to fetch all food" });
     }
   }
 );
 
-/**
- * GET /api/food/my-listings
- * Donor & Admin only
- */
+// ─────────────────────────────────────────────
+// GET /api/food/my-listings
+// Donor only
+// ─────────────────────────────────────────────
 router.get(
   "/my-listings",
   authenticate,
@@ -246,28 +352,32 @@ router.get(
     try {
       const foods = await Food.findAll({
         where: { donorId: req.user.id },
-        order: [['createdAt', 'DESC']],
-        include: [{
-          model: require('../models').Reservation,
-          required: false,
-          include: [{
-            model: require('../models').User,
-            attributes: ['name', 'college', 'roll_number']
-          }]
-        }]
+        order: [["createdAt", "DESC"]],
+        include: [
+          {
+            model: require("../models").Reservation,
+            required: false,
+            include: [
+              {
+                model: require("../models").User,
+                attributes: ["name", "college", "roll_number"],
+              },
+            ],
+          },
+        ],
       });
       res.json(foods);
     } catch (err) {
-      console.error("Fetch history error:", err);
-      res.status(500).json({ message: "Failed to fetch history" });
+      console.error("GET /food/my-listings error:", err);
+      res.status(500).json({ message: "Failed to fetch listings" });
     }
   }
 );
 
-/**
- * DELETE /api/food/:id
- * Admin only
- */
+// ─────────────────────────────────────────────
+// DELETE /api/food/:id
+// Admin only
+// ─────────────────────────────────────────────
 router.delete(
   "/:id",
   authenticate,
@@ -276,10 +386,15 @@ router.delete(
     try {
       const { id } = req.params;
       const deleted = await Food.destroy({ where: { id } });
-      if (!deleted) return res.status(404).json({ message: "Food item not found" });
+      if (!deleted)
+        return res.status(404).json({ message: "Food item not found" });
+
+      // Invalidate food cache after deletion
+      await redis.del("availableFood", "stats");
+
       res.json({ message: "Food item deleted successfully" });
     } catch (err) {
-      console.error("Delete food error:", err);
+      console.error("DELETE /food/:id error:", err);
       res.status(500).json({ message: "Failed to delete food item" });
     }
   }

@@ -225,7 +225,7 @@ export default function DonorPage() {
                 </aside>
 
                 {/* Main Content */}
-                <main className="flex-1 p-8 overflow-y-auto relative">
+                <main className="flex-1 p-4 sm:p-8 overflow-y-auto relative mb-24 md:mb-0">
                     <div className="absolute top-6 right-6 z-10 flex items-center gap-3">
                         <ModeToggle />
                         <Button
@@ -684,6 +684,22 @@ export default function DonorPage() {
 
                     </motion.div >
                 </main >
+                
+                {/* MOBILE BOTTOM NAV */}
+                <nav className="fixed bottom-0 w-full bg-background/95 backdrop-blur-md border-t border-border flex md:hidden items-center justify-around p-2 z-50 pb-safe">
+                    <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'post' ? 'text-green-500' : 'text-muted-foreground'}`} onClick={() => setActiveTab('post')}>
+                        <PlusCircle size={20} />
+                    </Button>
+                    <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'pickup' ? 'text-green-500' : 'text-muted-foreground'}`} onClick={() => setActiveTab('pickup')}>
+                        <ScanLine size={20} />
+                    </Button>
+                    <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'history' ? 'text-green-500' : 'text-muted-foreground'}`} onClick={() => setActiveTab('history')}>
+                        <History size={20} />
+                    </Button>
+                    <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'analytics' ? 'text-green-500' : 'text-muted-foreground'}`} onClick={() => setActiveTab('analytics')}>
+                        <DollarSign size={20} />
+                    </Button>
+                </nav>
             </div >
         </ProtectedRoute >
     );

@@ -361,6 +361,15 @@ router.get(
             as: "donor",
             attributes: ["name", "email"],
           },
+          {
+            model: require("../models").Reservation,
+            include: [
+              {
+                model: require("../models").User,
+                attributes: ["name", "email"],
+              }
+            ]
+          }
         ],
       });
 

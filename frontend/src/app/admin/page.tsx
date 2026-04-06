@@ -25,6 +25,8 @@ import Pusher from "pusher-js";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "users" | "food" | "analytics">("overview");
+  const [foodCategoryView, setFoodCategoryView] = useState<"categories" | "donors" | "students">("categories");
+  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [stats, setStats] = useState({ users: 0, activeFoodCount: 0, activeDonors: 0, activeStudents: 0 });
   const [users, setUsers] = useState<any[]>([]);
   const [food, setFood] = useState<any[]>([]);
@@ -148,7 +150,13 @@ export default function AdminPage() {
 
   const SidebarItem = ({ id, label, icon: Icon }: any) => (
     <div
-      onClick={() => setActiveTab(id)}
+      onClick={() => {
+        setActiveTab(id);
+        if (id === 'food') {
+          setFoodCategoryView('categories');
+          setSelectedEntity(null);
+        }
+      }}
       className={`flex items-center gap-3 px-4 py-3 cursor-pointer rounded-xl transition-all mb-2 ${activeTab === id
         ? "bg-purple-600 text-white font-semibold shadow-lg shadow-purple-900/20"
         : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -192,8 +200,8 @@ export default function AdminPage() {
         </aside>
 
         {/* MAIN CONTENT */}
-        <main className="flex-1 lg:ml-72 p-4 sm:p-10 relative mb-24 lg:mb-0">
-          <div className="absolute top-6 right-6 z-10 flex items-center gap-3">
+        <main className="flex-1 lg:ml-72 relative mb-24 lg:mb-0 flex flex-col min-h-screen">
+          <header className="flex justify-end items-center gap-3 p-4 sm:px-10 sm:pt-10 w-full z-10">
             <ModeToggle />
             <Button
               variant="outline"
@@ -205,11 +213,12 @@ export default function AdminPage() {
               <span className="hidden sm:inline">Logout</span>
               <LogOut className="size-4 sm:hidden" />
             </Button>
-          </div>
+          </header>
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="max-w-6xl mx-auto"
+            className="w-full max-w-6xl mx-auto p-4 sm:px-10 sm:pb-10 flex-1 mt-2"
           >
 
             {activeTab === 'overview' && (
@@ -343,46 +352,221 @@ export default function AdminPage() {
 
             {activeTab === 'food' && (
               <div className="space-y-6">
-                <h2 className="text-3xl font-bold">Food Oversight</h2>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {Array.isArray(food) && food.map((f: any) => {
-                    const isExpired = new Date(f.expiry_time) < new Date();
-                    const isAvailable = f.quantity > 0;
-                    
-                    return (
-                      <Card key={f.id} className="p-4 bg-card border-border flex justify-between items-start">
-                        <div>
-                          <h4 className="font-bold text-lg mb-1">{f.name}</h4>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            <span className="font-semibold text-foreground/80">{f.donor?.name || "Unknown Donor"}</span> • {f.dining_hall} • Qty: {f.quantity}
-                          </p>
-                          <div className="flex gap-2 mb-3">
-                            {isExpired ? (
-                              <Badge variant="destructive" className="text-[10px] uppercase font-bold tracking-wider">Expired</Badge>
-                            ) : isAvailable ? (
-                              <Badge variant="default" className="bg-green-500 text-[10px] uppercase font-bold tracking-wider">Available</Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Claimed</Badge>
-                            )}
-                          </div>
-                          <div className="flex gap-2 flex-wrap">
-                            {Array.isArray(f.allergens) && f.allergens.map((a: string) => (
-                              <Badge key={a} variant="outline" className="text-xs border-border text-muted-foreground">{a}</Badge>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-3xl font-bold">Food Oversight</h2>
+                  {foodCategoryView !== "categories" && (
+                    <Button variant="outline" onClick={() => {
+                      if (selectedEntity) setSelectedEntity(null);
+                      else setFoodCategoryView("categories");
+                    }}>
+                      &larr; {selectedEntity ? "Back to List" : "Back to Categories"}
+                    </Button>
+                  )}
+                </div>
+
+                {foodCategoryView === "categories" && !selectedEntity && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <Card 
+                      className="p-8 cursor-pointer hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group relative overflow-hidden"
+                      onClick={() => setFoodCategoryView("donors")}
+                    >
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Utensils className="size-24" />
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 group-hover:text-purple-400 relative z-10 text-foreground transition-colors">Food Posted by Donors</h3>
+                      <p className="text-muted-foreground relative z-10">View all the food listings posted, including active and claimed items.</p>
+                      <div className="mt-4 text-4xl font-black text-foreground/10 group-hover:text-purple-500/20 transition-colors relative z-10">{food.length} total listings</div>
+                    </Card>
+
+                    <Card 
+                      className="p-8 cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group relative overflow-hidden"
+                      onClick={() => setFoodCategoryView("students")}
+                    >
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Users className="size-24" />
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 group-hover:text-blue-400 relative z-10 text-foreground transition-colors">Orders Made by Students</h3>
+                      <p className="text-muted-foreground relative z-10">View all student reservations, claims, and pickup histories.</p>
+                      <div className="mt-4 text-4xl font-black text-foreground/10 group-hover:text-blue-500/20 transition-colors relative z-10">
+                        {food.reduce((acc, f) => acc + (f.Reservations?.length || 0), 0)} total orders
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {foodCategoryView === "donors" && (
+                  <div className="space-y-6">
+                    {(() => {
+                      const foodsByDonor = food.reduce((acc: any, f: any) => {
+                        const donorKey = f.donor?.email || "Unknown Donor";
+                        const donorName = f.donor?.name || "Unknown Donor";
+                        if (!acc[donorKey]) acc[donorKey] = { name: donorName, email: donorKey, foods: [] };
+                        acc[donorKey].foods.push(f);
+                        return acc;
+                      }, {});
+
+                      const donorGroups = Object.keys(foodsByDonor).length > 0 ? Object.values(foodsByDonor) : [];
+
+                      if (!selectedEntity) {
+                        return donorGroups.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {donorGroups.map((group: any) => (
+                              <Card 
+                                key={group.email} 
+                                className="p-6 cursor-pointer hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group"
+                                onClick={() => setSelectedEntity(group.email)}
+                              >
+                                <h3 className="text-xl font-bold mb-2 group-hover:text-purple-400 flex items-center gap-2">
+                                  <Users size={18} /> {group.name}
+                                </h3>
+                                <div className="mt-4 text-3xl font-black text-foreground/10 group-hover:text-purple-500/20 transition-colors">
+                                  {group.foods.length} postings
+                                </div>
+                              </Card>
                             ))}
                           </div>
+                        ) : (
+                          <div className="text-center text-muted-foreground mt-10">
+                            No food postings found.
+                          </div>
+                        );
+                      }
+
+                      const selectedGroup: any = donorGroups.find((g: any) => g.email === selectedEntity);
+                      if (!selectedGroup) return null;
+
+                      return (
+                        <div className="bg-card/30 p-6 rounded-2xl border border-border">
+                          <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                            <span className="bg-purple-500/20 text-purple-400 p-2 rounded-lg"><Users size={24} /></span>
+                            {selectedGroup.name}
+                            <Badge variant="outline" className="ml-2">{selectedGroup.foods.length} items</Badge>
+                          </h3>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {selectedGroup.foods.map((f: any) => {
+                              const isExpired = new Date(f.expiry_time) < new Date();
+                              const isAvailable = f.quantity > 0;
+                              
+                              return (
+                                <Card key={f.id} className="p-4 bg-card border-border flex justify-between items-start">
+                                  <div>
+                                    <h4 className="font-bold text-lg mb-1">{f.name}</h4>
+                                    <p className="text-sm text-muted-foreground mb-2">
+                                      {f.dining_hall} • Qty: {f.quantity}
+                                    </p>
+                                    <div className="flex gap-2 mb-3">
+                                      {isExpired ? (
+                                        <Badge variant="destructive" className="text-[10px] uppercase font-bold tracking-wider">Expired</Badge>
+                                      ) : isAvailable ? (
+                                        <Badge variant="default" className="bg-green-500 text-[10px] uppercase font-bold tracking-wider">Available</Badge>
+                                      ) : (
+                                        <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Claimed</Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-2 flex-wrap">
+                                      {Array.isArray(f.allergens) && f.allergens.map((a: string) => (
+                                        <Badge key={a} variant="outline" className="text-xs border-border text-muted-foreground">{a}</Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    className="bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50"
+                                    onClick={() => handleDeleteFood(f.id)}
+                                  >
+                                    Remove
+                                  </Button>
+                                </Card>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50"
-                          onClick={() => handleDeleteFood(f.id)}
-                        >
-                          Remove
-                        </Button>
-                      </Card>
-                    );
-                  })}
-                </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {foodCategoryView === "students" && (
+                  <div className="space-y-6">
+                    {(() => {
+                      const allReservations = food.flatMap(f => (f.Reservations || []).map((r: any) => ({ ...r, foodName: f.name })));
+                      
+                      const resByStudent = allReservations.reduce((acc: any, r: any) => {
+                        const studentKey = r.User?.email || "Unknown Student";
+                        const studentName = r.User?.name || "Unknown Student";
+                        if (!acc[studentKey]) acc[studentKey] = { name: studentName, email: studentKey, reservations: [] };
+                        acc[studentKey].reservations.push(r);
+                        return acc;
+                      }, {});
+
+                      const studentGroups = Object.keys(resByStudent).length > 0 ? Object.values(resByStudent) : [];
+
+                      if (!selectedEntity) {
+                        return studentGroups.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {studentGroups.map((group: any) => (
+                              <Card 
+                                key={group.email} 
+                                className="p-6 cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group"
+                                onClick={() => setSelectedEntity(group.email)}
+                              >
+                                <h3 className="text-xl font-bold mb-2 group-hover:text-blue-400 flex items-center gap-2">
+                                  <Users size={18} /> {group.name}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">{group.email}</p>
+                                <div className="mt-4 text-3xl font-black text-foreground/10 group-hover:text-blue-500/20 transition-colors">
+                                  {group.reservations.length} orders
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-8 text-center text-muted-foreground">
+                            No student reservations yet.
+                          </div>
+                        );
+                      }
+
+                      const selectedGroup: any = studentGroups.find((g: any) => g.email === selectedEntity);
+                      if (!selectedGroup) return null;
+
+                      return (
+                        <div className="bg-card/30 p-6 rounded-2xl border border-border">
+                          <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                            <span className="bg-blue-500/20 text-blue-400 p-2 rounded-lg"><Users size={24} /></span>
+                            {selectedGroup.name}
+                            <span className="text-sm font-normal text-muted-foreground ml-2">({selectedGroup.email})</span>
+                            <Badge variant="outline" className="ml-2">{selectedGroup.reservations.length} orders</Badge>
+                          </h3>
+                          <div className="rounded-2xl border border-border overflow-x-auto bg-card">
+                            <table className="w-full text-left min-w-[600px]">
+                              <thead className="bg-muted text-muted-foreground text-xs uppercase font-semibold">
+                                <tr>
+                                  <th className="p-4">Food Claimed</th>
+                                  <th className="p-4">Quantity</th>
+                                  <th className="p-4">Status & Time</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {selectedGroup.reservations.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((r: any) => (
+                                  <tr key={r.id} className="hover:bg-muted/50 transition-colors">
+                                    <td className="p-4 text-foreground font-medium">{r.foodName}</td>
+                                    <td className="p-4 font-mono text-muted-foreground">{r.quantity}</td>
+                                    <td className="p-4">
+                                      <div className="text-sm font-medium capitalize mb-1">{r.status.replace("_", " ")}</div>
+                                      <div className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleString()}</div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
 

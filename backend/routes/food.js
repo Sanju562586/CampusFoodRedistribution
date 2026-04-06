@@ -4,12 +4,13 @@ const { Food } = require("../models");
 const { Op } = require("sequelize");
 const { Redis } = require("@upstash/redis");
 const { foodCache } = require("../lib/localCache");
+const cloudinary = require("../config/cloudinary");
 
 // Shared Redis client — REST-based, serverless-safe
 const redis = Redis.fromEnv();
 
 const router = express.Router();
-const { Client } = require("@upstash/qstash");
+const { Client, Receiver } = require("@upstash/qstash");
 
 // ─────────────────────────────────────────────
 // In-flight promise coalescing for /available
@@ -83,6 +84,19 @@ router.post(
       return res.status(400).json({ message: "Missing field: Location/Dining Hall" });
 
     try {
+      let finalImageUrl = image_url || null;
+      if (image_url && image_url.startsWith('data:image')) {
+        try {
+          const uploadResponse = await cloudinary.uploader.upload(image_url, {
+            folder: 'campus_food'
+          });
+          finalImageUrl = uploadResponse.secure_url;
+        } catch (cloudinaryErr) {
+          console.error("Cloudinary Upload Error:", cloudinaryErr);
+          return res.status(500).json({ message: "Image upload failed. Check Cloudinary configuration." });
+        }
+      }
+
       const payload = {
         name,
         quantity,
@@ -92,7 +106,7 @@ router.post(
         donorId: req.user.role === "donor" ? req.user.id : null,
         location: location || dining_hall,
         landmark: landmark || null,
-        image_url: image_url || null,
+        image_url: finalImageUrl,
         price: price || 0,
         status: "available",
       };
@@ -108,17 +122,28 @@ router.post(
         return await directFoodCreate(payload, req.pusher, res);
       }
 
-      // Publish to QStash — decouples DB write from user response
-      const qstashClient = new Client({ token: process.env.QSTASH_TOKEN });
-      const targetUrl = `${process.env.APP_URL || "http://localhost:5000"}/api/food/worker-create`;
+      try {
+        // Publish to QStash — decouples DB write from user response
+        const targetUrl = `${process.env.APP_URL || "http://localhost:5000"}/api/food/worker-create`;
+        
+        // QStash is a cloud service and cannot reach localhost.
+        if (targetUrl.includes("localhost") || targetUrl.includes("127.0.0.1")) {
+          console.warn("⚠️ Localhost detected in target URL. QStash cannot reach local networks. Executing direct DB write.");
+          return await directFoodCreate(payload, req.pusher, res);
+        }
 
-      await qstashClient.publishJSON({ url: targetUrl, body: payload });
+        const qstashClient = new Client({ token: process.env.QSTASH_TOKEN });
+        await qstashClient.publishJSON({ url: targetUrl, body: payload });
 
-      // Return 202 instantly — user doesn't wait for DB
-      res.status(202).json({ message: "Food creation queued successfully" });
+        // Return 202 instantly — user doesn't wait for DB
+        res.status(202).json({ message: "Food creation queued successfully" });
+      } catch (qstashErr) {
+        console.error("QStash Publish Error:", qstashErr);
+        res.status(500).json({ message: "Failed to queue food creation" });
+      }
     } catch (err) {
-      console.error("QStash Publish Error:", err);
-      res.status(500).json({ message: "Failed to queue food creation" });
+      console.error("Food Create Error:", err);
+      res.status(500).json({ message: "An unexpected error occurred" });
     }
   }
 );
@@ -162,8 +187,29 @@ async function directFoodCreate(payload, pusherClient, res) {
 // Called by QStash after food creation is queued
 // ─────────────────────────────────────────────
 router.post("/worker-create", async (req, res) => {
-  // TODO (production): verify QStash signature using @upstash/qstash Receiver
   console.log("📥 QStash Worker: processing food creation");
+
+  // Verify QStash Signature for production deployments
+  if (process.env.QSTASH_CURRENT_SIGNING_KEY && process.env.QSTASH_NEXT_SIGNING_KEY) {
+    try {
+      const receiver = new Receiver({
+        currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY,
+        nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY,
+      });
+
+      const isValid = await receiver.verify({
+        signature: req.headers["upstash-signature"],
+        body: req.rawBody,
+      });
+
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid QStash signature" });
+      }
+    } catch (err) {
+      console.error("QStash Signature Verification Error:", err);
+      return res.status(401).json({ message: "QStash authorization failed" });
+    }
+  }
 
   try {
     const payload = req.body;

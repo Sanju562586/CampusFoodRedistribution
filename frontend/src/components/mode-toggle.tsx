@@ -3,25 +3,36 @@
 import * as React from "react"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-
-import { Button } from "@/components/ui/button"
+import { motion } from "framer-motion"
 
 export function ModeToggle() {
-    const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+  const { theme, setTheme } = useTheme()
 
-    const toggleTheme = () => {
-        if (theme === "dark") {
-            setTheme("light")
-        } else {
-            setTheme("dark")
-        }
-    }
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
-    return (
-        <Button variant="outline" size="icon" onClick={toggleTheme}>
-            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            <span className="sr-only">Toggle theme</span>
-        </Button>
-    )
+  if (!mounted) {
+    return <div className="theme-toggle" /> // Render empty placeholder matching the size
+  }
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+  return (
+    <motion.button
+      onClick={toggleTheme}
+      whileHover={{ scale: 1.08 }}
+      whileTap={{ scale: 0.92 }}
+      className="theme-toggle"
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <span className="sr-only">Toggle theme</span>
+    </motion.button>
+  )
 }
+

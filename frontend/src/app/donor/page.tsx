@@ -147,9 +147,9 @@ export default function DonorPage() {
   };
 
   const statusLabel: Record<string, { label: string; cls: string }> = {
-    expired:   { label: "EXPIRED",   cls: "bg-red-100    text-red-600    border-red-200"     },
-    picked_up: { label: "PICKED UP", cls: "bg-blue-100   text-blue-700   border-blue-200"   },
-    available: { label: "ACTIVE",    cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+    expired: { label: "EXPIRED", cls: "bg-red-100    text-red-600    border-red-200" },
+    picked_up: { label: "PICKED UP", cls: "bg-blue-100   text-blue-700   border-blue-200" },
+    available: { label: "ACTIVE", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   };
 
   // Filtered history
@@ -256,10 +256,10 @@ export default function DonorPage() {
   // ── Sidebar nav ───────────────────────────────────────────
   return (
     <ProtectedRoute allowedRole="donor">
-      <div className="flex min-h-screen bg-[#f6faf6]">
+      <div className="flex mac-page">
 
         {/* ── Sidebar ── */}
-        <aside className="w-56 border-r border-[#d4edda] bg-[#eef8ee] flex-col hidden md:flex sticky top-0 h-screen z-40">
+        <aside className="w-56 glass-sidebar flex-col hidden md:flex sticky top-0 h-screen z-40">
           <div className="px-5 pt-7 pb-5">
             <BrandLogo
               size={38}
@@ -271,17 +271,17 @@ export default function DonorPage() {
 
           <nav className="flex-1 px-3 space-y-0.5">
             {([
-              { id: "post",      label: "Post New Food",    icon: PlusCircle },
-              { id: "pickup",    label: "Verify Pickup",    icon: ScanLine   },
-              { id: "history",   label: "Donation History", icon: History    },
-              { id: "analytics", label: "Impact & Revenue", icon: BarChart3  },
+              { id: "post", label: "Post New Food", icon: PlusCircle },
+              { id: "pickup", label: "Verify Pickup", icon: ScanLine },
+              { id: "history", label: "Donation History", icon: History },
+              { id: "analytics", label: "Impact & Revenue", icon: BarChart3 },
             ] as const).map(({ id, label, icon: Icon }) => (
               <div key={id} className="relative">
                 <AnimatePresence>
                   {activeTab === id && (
                     <motion.div
                       layoutId="donor-sidebar-active-pill"
-                      className="absolute inset-0 bg-white rounded-xl shadow-sm"
+                      className="absolute inset-0 glass-nav-active rounded-xl"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
@@ -291,20 +291,18 @@ export default function DonorPage() {
                 </AnimatePresence>
                 <button
                   onClick={() => setActiveTab(id)}
-                  className={`group relative w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150 rounded-xl z-10 ${
-                    activeTab === id
-                      ? "text-[#1a5c2e] font-semibold"
-                      : "text-gray-500 hover:text-gray-800 hover:bg-[#e5f5e9]"
-                  }`}
+                  className={`group relative w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150 rounded-xl z-10 ${activeTab === id
+                      ? "text-[#1a5c2e] dark:text-emerald-400 font-semibold"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-[#e5f5e9] dark:hover:bg-white/10"
+                    }`}
                 >
                   <motion.div
                     whileHover={{ scale: 1.15 }}
                     transition={{ type: "spring", stiffness: 400, damping: 20 }}
                   >
                     <Icon
-                      className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                        activeTab === id ? "text-[#1a5c2e]" : "text-gray-400 group-hover:text-gray-600"
-                      }`}
+                      className={`w-4 h-4 flex-shrink-0 transition-colors ${activeTab === id ? "text-[#1a5c2e]" : "text-gray-400 group-hover:text-gray-600"
+                        }`}
                     />
                   </motion.div>
                   {label}
@@ -350,8 +348,8 @@ export default function DonorPage() {
 
                 <div className="px-7 py-8 max-w-screen-xl mx-auto">
                   <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="mb-8">
-                    <h1 className="text-4xl font-black text-gray-900 leading-tight">Share Your Surplus</h1>
-                    <p className="text-gray-500 text-base mt-2 max-w-xl leading-relaxed">
+                    <h1 className="text-4xl font-black text-gray-900 dark:text-gray-50 leading-tight">Share Your Surplus</h1>
+                    <p className="text-gray-500 dark:text-gray-400 text-base mt-2 max-w-xl leading-relaxed">
                       Transform excess inventory into community impact. Your contribution helps reduce waste and supports local food security.
                     </p>
                   </motion.div>
@@ -363,7 +361,7 @@ export default function DonorPage() {
                       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.35 }} className="space-y-4">
                         <div className="flex items-center gap-3 mb-1">
                           <div className="w-7 h-7 rounded-full bg-[#1a5c2e] text-white text-sm font-black flex items-center justify-center flex-shrink-0">1</div>
-                          <h3 className="text-xl font-black text-gray-900">Food Details</h3>
+                          <h3 className="text-xl font-black text-gray-900 dark:text-gray-50">Food Details</h3>
                         </div>
 
                         <div className="space-y-1.5">
@@ -393,21 +391,18 @@ export default function DonorPage() {
                       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.35 }} className="space-y-4 pt-2">
                         <div className="flex items-center gap-3 mb-1">
                           <div className="w-7 h-7 rounded-full bg-[#1a5c2e] text-white text-sm font-black flex items-center justify-center flex-shrink-0">2</div>
-                          <h3 className="text-xl font-black text-gray-900">Logistics</h3>
+                          <h3 className="text-xl font-black text-gray-900 dark:text-gray-50">Logistics</h3>
                         </div>
 
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Area / Campus Zone</label>
                           <div className="relative">
-                            <select value={hall} onChange={(e) => setHall(e.target.value)} className="w-full h-11 appearance-none bg-white border border-[#e2ede2] rounded-xl px-3 pr-10 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1a5c2e]/20 focus:border-[#1a5c2e] shadow-sm">
-                              <option value="">Select campus zone…</option>
-                              <option>North Campus – Culinary Wing</option>
-                              <option>South Campus – Main Cafeteria</option>
-                              <option>East Block – Food Court</option>
-                              <option>West Annex – Snack Bar</option>
-                              <option>Central Hub – Dining Hall</option>
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            <Input
+                              value={hall}
+                              onChange={(e) => setHall(e.target.value)}
+                              placeholder="e.g. North Campus, Central Hub"
+                              className="h-11 bg-white border-[#e2ede2] rounded-xl text-gray-800 placeholder:text-gray-300 shadow-sm"
+                            />
                           </div>
                         </div>
 
@@ -426,17 +421,16 @@ export default function DonorPage() {
                       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.35 }} className="space-y-4 pt-2">
                         <div className="flex items-center gap-3 mb-1">
                           <div className="w-7 h-7 rounded-full bg-[#1a5c2e] text-white text-sm font-black flex items-center justify-center flex-shrink-0">3</div>
-                          <h3 className="text-xl font-black text-gray-900">Dietary & Allergens</h3>
+                          <h3 className="text-xl font-black text-gray-900 dark:text-gray-50">Dietary & Allergens</h3>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", "Nut-Free", "Halal", "Kosher", "Spicy"].map((a) => (
                             <motion.button
                               key={a} whileTap={{ scale: 0.94 }} onClick={() => toggleAllergen(a)}
-                              className={`px-4 py-2 rounded-full text-sm font-medium border transition-all duration-150 select-none ${
-                                allergens.includes(a)
+                              className={`px-4 py-2 rounded-full text-sm font-medium border transition-all duration-150 select-none ${allergens.includes(a)
                                   ? "bg-[#1a5c2e] text-white border-[#1a5c2e] shadow-sm"
-                                  : "bg-white text-gray-600 border-[#d6e8d6] hover:border-[#1a5c2e]/40 hover:text-[#1a5c2e] shadow-sm"
-                              }`}
+                                  : "bg-white dark:bg-white/7 text-gray-600 dark:text-gray-400 border-[#d6e8d6] dark:border-white/15 hover:border-[#1a5c2e]/40 hover:text-[#1a5c2e] dark:hover:border-emerald-500/40 dark:hover:text-emerald-400 shadow-sm"
+                                }`}
                             >
                               {allergens.includes(a) && <span className="mr-1">✓</span>}
                               {a}
@@ -450,11 +444,10 @@ export default function DonorPage() {
                         {message && (
                           <motion.div
                             initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                            className={`rounded-xl px-4 py-3 text-sm font-semibold ${
-                              message.includes("✅") || message.includes("✏️")
+                            className={`rounded-xl px-4 py-3 text-sm font-semibold ${message.includes("✅") || message.includes("✏️")
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                 : "bg-red-50 text-red-700 border border-red-200"
-                            }`}
+                              }`}
                           >
                             {message}
                           </motion.div>
@@ -465,8 +458,8 @@ export default function DonorPage() {
                     {/* ── RIGHT: Sticky sidebar cards ── */}
                     <div className="space-y-4 lg:sticky lg:top-[65px]">
                       {/* Visual Verification */}
-                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.12, duration: 0.35 }} className="bg-white rounded-2xl border border-[#e2ede2] p-5 space-y-3">
-                        <p className="font-black text-gray-800 text-sm">Visual Verification</p>
+                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.12, duration: 0.35 }} className="glass-panel rounded-2xl p-5 space-y-3">
+                        <p className="font-black text-gray-800 dark:text-gray-100 text-sm">Visual Verification</p>
 
                         {isCameraOpen ? (
                           <div className="relative rounded-xl overflow-hidden bg-black aspect-square">
@@ -486,11 +479,11 @@ export default function DonorPage() {
                             </button>
                           </div>
                         ) : (
-                          <div className="rounded-xl border-2 border-dashed border-[#e2ede2] bg-[#f6faf6] aspect-[4/3] flex flex-col items-center justify-center gap-2 text-center px-4">
-                            <div className="w-10 h-10 rounded-full bg-white border border-[#e2ede2] flex items-center justify-center">
+                          <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-white/15 bg-gray-50 dark:bg-white/5 aspect-[4/3] flex flex-col items-center justify-center gap-2 text-center px-4">
+                            <div className="w-10 h-10 rounded-full bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 flex items-center justify-center">
                               <Camera className="w-5 h-5 text-gray-400" />
                             </div>
-                            <p className="text-sm font-bold text-gray-600">Upload Product Image</p>
+                            <p className="text-sm font-bold text-gray-600 dark:text-gray-300">Upload Product Image</p>
                             <p className="text-[11px] text-gray-400 leading-snug">Clear photos help users identify listings quickly</p>
                           </div>
                         )}
@@ -501,7 +494,7 @@ export default function DonorPage() {
                               <Camera className="w-4 h-4" /> Take Photo
                             </button>
                             <label className="block">
-                              <div className="w-full flex items-center justify-center gap-2 bg-[#f6faf6] hover:bg-[#eef8ee] text-gray-600 border border-[#e2ede2] text-sm font-bold py-2.5 rounded-xl transition-colors cursor-pointer">
+                              <div className="w-full flex items-center justify-center gap-2 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 text-sm font-bold py-2.5 rounded-xl transition-colors cursor-pointer">
                                 <Upload className="w-4 h-4" /> Upload File
                               </div>
                               <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -511,14 +504,14 @@ export default function DonorPage() {
                       </motion.div>
 
                       {/* Publish Card */}
-                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.18, duration: 0.35 }} className="bg-[#eef8ee] border border-[#c7efd4] rounded-2xl p-5 space-y-3">
+                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.18, duration: 0.35 }} className="glass-action-card rounded-2xl p-5 space-y-3">
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 rounded-xl bg-[#1a5c2e] flex items-center justify-center flex-shrink-0">
                             <ShieldCheck className="w-5 h-5 text-white" />
                           </div>
                           <div>
-                            <p className="font-black text-gray-800 text-sm">Ready to publish?</p>
-                            <p className="text-xs text-gray-500 mt-0.5">All listings are vetted for quality.</p>
+                            <p className="font-black text-gray-800 dark:text-gray-100 text-sm">Ready to publish?</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">All listings are vetted for quality.</p>
                           </div>
                         </div>
                         <motion.button
@@ -538,12 +531,12 @@ export default function DonorPage() {
                       </motion.div>
 
                       {/* Pro-tip */}
-                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.22, duration: 0.35 }} className="bg-white border border-[#e2ede2] rounded-2xl p-4 flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Info className="w-4 h-4 text-blue-600" />
+                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.22, duration: 0.35 }} className="glass-panel rounded-2xl p-4 flex items-start gap-3">
+                        <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                         </div>
-                        <p className="text-xs text-gray-500 leading-relaxed">
-                          <span className="font-bold text-gray-700">Pro-tip:</span> Adding a landmark like &ldquo;Near the blue vending machine&rdquo; helps volunteers find the pickup spot 30% faster.
+                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                          <span className="font-bold text-gray-700 dark:text-gray-200">Pro-tip:</span> Adding a landmark like &ldquo;Near the blue vending machine&rdquo; helps volunteers find the pickup spot 30% faster.
                         </p>
                       </motion.div>
                     </div>
@@ -556,38 +549,38 @@ export default function DonorPage() {
                 PICKUP VERIFICATION TAB
             ═══════════════════════════════════════════════ */}
             {activeTab === "pickup" && (
-              <motion.div 
-                initial={{ opacity: 0, y: 15 }} 
-                animate={{ opacity: 1, y: 0 }} 
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
                 className="max-w-3xl mx-auto p-6 md:p-10 lg:p-16 w-full flex flex-col items-center"
               >
                 {/* Header */}
                 <div className="w-full mb-10 text-center md:text-left">
                   <p className="text-xs font-semibold text-gray-500 tracking-wide uppercase mb-3 flex items-center justify-center md:justify-start gap-2">
-                    Operations <ChevronRight className="w-3 h-3 text-gray-400" /> <span className="text-[#1a5c2e]">Pickup Verification</span>
+                    Operations <ChevronRight className="w-3 h-3 text-gray-400" /> <span className="text-[#1a5c2e] dark:text-emerald-400">Pickup Verification</span>
                   </p>
-                  <h1 className="text-4xl md:text-5xl font-black text-gray-800 tracking-tight leading-none mb-1">
+                  <h1 className="text-4xl md:text-5xl font-black text-gray-800 dark:text-gray-50 tracking-tight leading-none mb-1">
                     Excellence Edition
                   </h1>
-                  <h2 className="text-4xl md:text-5xl font-black text-[#1a5c2e] tracking-tight leading-none">
+                  <h2 className="text-4xl md:text-5xl font-black text-[#1a5c2e] dark:text-emerald-400 tracking-tight leading-none">
                     Pickup Verification
                   </h2>
                 </div>
 
                 {/* Central Card */}
-                <div className="w-full bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 md:p-10 border border-gray-100">
+                <div className="w-full glass-panel rounded-[2rem] p-6 md:p-10">
                   {/* Scan QR Section */}
                   <div className="mb-8">
                     {!isScanning ? (
                       <button
-                         onClick={() => setIsScanning(true)}
-                         className="w-full bg-[#f6f7f3] hover:bg-[#eff1ea] border border-transparent rounded-[2rem] p-12 flex flex-col items-center justify-center transition-colors group cursor-pointer"
+                        onClick={() => setIsScanning(true)}
+                        className="w-full bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/8 border border-gray-100 dark:border-white/8 rounded-[2rem] p-12 flex flex-col items-center justify-center transition-colors group cursor-pointer"
                       >
-                         <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-5 group-hover:scale-105 transition-transform duration-300">
-                           <ScanLine className="w-8 h-8 text-[#1a5c2e]" />
-                         </div>
-                         <h3 className="text-xl font-bold text-gray-800 mb-2">Scan QR Code</h3>
-                         <p className="text-sm text-gray-500">Use your device camera to verify instantly</p>
+                        <div className="w-16 h-16 bg-white dark:bg-white/10 rounded-2xl shadow-sm flex items-center justify-center mb-5 group-hover:scale-105 transition-transform duration-300">
+                          <ScanLine className="w-8 h-8 text-[#1a5c2e] dark:text-emerald-400" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">Scan QR Code</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Use your device camera to verify instantly</p>
                       </button>
                     ) : (
                       <div className="w-full rounded-[2rem] overflow-hidden border-2 border-green-500/50 aspect-video relative bg-black shadow-inner">
@@ -610,15 +603,15 @@ export default function DonorPage() {
 
                   {/* Divider */}
                   <div className="relative flex items-center py-2 mb-8">
-                    <div className="flex-grow border-t border-gray-100"></div>
+                    <div className="flex-grow border-t border-gray-100 dark:border-white/10"></div>
                     <span className="flex-shrink-0 mx-4 text-[10px] font-bold tracking-[0.2em] text-gray-400 uppercase">OR</span>
-                    <div className="flex-grow border-t border-gray-100"></div>
+                    <div className="flex-grow border-t border-gray-100 dark:border-white/10"></div>
                   </div>
 
                   {/* Manual Code Section */}
                   <div className="space-y-6">
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                      <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">
                         Manual Reservation Code
                       </label>
                       <div className="relative">
@@ -626,7 +619,7 @@ export default function DonorPage() {
                           value={pickupCode}
                           onChange={(e) => setPickupCode(e.target.value)}
                           placeholder="Enter 8-digit code"
-                          className="w-full bg-[#fafafa] border-none text-gray-800 placeholder:text-gray-400 h-14 px-5 rounded-2xl text-lg font-medium focus-visible:ring-1 focus-visible:ring-[#2f5e3e]"
+                          className="w-full bg-gray-50 dark:bg-white/5 border-none text-gray-800 dark:text-gray-100 placeholder:text-gray-400 h-14 px-5 rounded-2xl text-lg font-medium focus-visible:ring-1 focus-visible:ring-[#2f5e3e]"
                           onKeyDown={(e) => e.key === "Enter" && handleVerifyPickup()}
                         />
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 p-1">
@@ -635,9 +628,9 @@ export default function DonorPage() {
                       </div>
                     </div>
 
-                    <Button 
-                      className="w-full h-14 bg-[#31613b] hover:bg-[#254b2d] text-white rounded-2xl font-semibold text-lg shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-3" 
-                      onClick={() => handleVerifyPickup()} 
+                    <Button
+                      className="w-full h-14 bg-[#31613b] hover:bg-[#254b2d] text-white rounded-2xl font-semibold text-lg shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-3"
+                      onClick={() => handleVerifyPickup()}
                       disabled={pickupLoading || !pickupCode}
                     >
                       <ShieldCheck className="w-5 h-5" />
@@ -645,18 +638,18 @@ export default function DonorPage() {
                     </Button>
 
                     {pickupResult && (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-green-50 border border-green-200 p-5 rounded-2xl space-y-3 mt-4">
-                        <div className="flex items-center gap-3 text-green-700">
-                          <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center">
-                            <CheckCircle2 className="w-5 h-5 text-green-700" />
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-5 rounded-2xl space-y-3 mt-4">
+                        <div className="flex items-center gap-3 text-green-700 dark:text-green-400">
+                          <div className="w-8 h-8 rounded-full bg-green-200 dark:bg-green-800 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5 text-green-700 dark:text-green-300" />
                           </div>
                           <p className="font-bold text-lg">Verification Successful</p>
                         </div>
-                        <div className="bg-white rounded-xl p-4 text-sm text-gray-700 shadow-sm border border-green-100">
+                        <div className="bg-white dark:bg-black/20 rounded-xl p-4 text-sm text-gray-700 dark:text-gray-300 shadow-sm border border-green-100 dark:border-green-800">
                           <div className="grid grid-cols-2 gap-y-2">
                             <p><span className="text-gray-400">Item:</span> <span className="font-semibold">{pickupResult.reservation.Food?.name}</span></p>
                             <p><span className="text-gray-400">Qty:</span> <span className="font-semibold">{pickupResult.reservation.quantity}</span></p>
-                            <p><span className="text-gray-400">Code:</span> <span className="font-mono bg-gray-100 px-1 rounded">{pickupResult.reservation.reservation_code}</span></p>
+                            <p><span className="text-gray-400">Code:</span> <span className="font-mono bg-gray-100 dark:bg-white/10 px-1 rounded">{pickupResult.reservation.reservation_code}</span></p>
                             {pickupResult.reservation.User && (
                               <p><span className="text-gray-400">Student:</span> <span className="font-semibold">{pickupResult.reservation.User.name}</span></p>
                             )}
@@ -666,7 +659,7 @@ export default function DonorPage() {
                     )}
 
                     {pickupError && (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 flex items-start gap-3 mt-4">
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-xl border border-red-200 dark:border-red-800 flex items-start gap-3 mt-4">
                         <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                         <p className="font-medium">{pickupError}</p>
                       </motion.div>
@@ -674,11 +667,11 @@ export default function DonorPage() {
                   </div>
 
                   {/* Footer Box */}
-                  <div className="mt-10 bg-[#fafafa] rounded-2xl p-5 flex items-start gap-4">
-                    <ShieldCheck className="w-5 h-5 text-gray-800 shrink-0 mt-0.5" />
+                  <div className="mt-10 glass-panel rounded-2xl p-5 flex items-start gap-4">
+                    <ShieldCheck className="w-5 h-5 text-gray-800 dark:text-gray-200 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-gray-800">Secure Verification Protocol</h4>
-                      <p className="text-xs text-gray-500 mt-1 leading-relaxed max-w-sm">
+                      <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100">Secure Verification Protocol</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed max-w-sm">
                         Each verification is logged with GPS coordinates and timestamps. Ensuring the highest standards of food safety and logistical chain of custody.
                       </p>
                     </div>
@@ -697,24 +690,24 @@ export default function DonorPage() {
             ═══════════════════════════════════════════════ */}
             {activeTab === "history" && (
               <div className="min-h-screen">
-                <header className="bg-white border-b border-[#e2ede2] px-7 py-3.5 flex items-center justify-between sticky top-0 z-30">
+                <header className="glass-header border-b border-gray-200/50 dark:border-white/10 px-7 py-3.5 flex items-center justify-between sticky top-0 z-30">
                   <div className="relative">
                     <input
                       type="text"
                       value={histSearch}
                       onChange={(e) => setHistSearch(e.target.value)}
                       placeholder="Search history..."
-                      className="pl-9 pr-4 py-2 bg-[#f6faf6] border border-[#e2ede2] rounded-full text-sm outline-none focus:ring-2 focus:ring-[#1a5c2e]/20 w-52 text-gray-600 placeholder:text-gray-400"
+                      className="pl-9 pr-4 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#1a5c2e]/20 w-52 text-gray-600 dark:text-gray-300 placeholder:text-gray-400"
                     />
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
                   </div>
                   <div className="flex items-center gap-3 ml-auto">
-                    <div className="flex items-center gap-2.5 pl-3 border-l border-[#e2ede2]">
+                    <div className="flex items-center gap-2.5 pl-3 border-l border-gray-200 dark:border-white/10">
                       <div className="w-9 h-9 rounded-full bg-[#1a5c2e] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                         {user?.name?.[0]?.toUpperCase() ?? "D"}
                       </div>
                       <div className="text-right hidden sm:block">
-                        <p className="text-sm font-bold text-gray-800 leading-tight">{user?.name ?? "Donor"}</p>
+                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100 leading-tight">{user?.name ?? "Donor"}</p>
                         <p className="text-[10px] text-gray-400">Donor Account</p>
                       </div>
                     </div>
@@ -723,9 +716,9 @@ export default function DonorPage() {
 
                 <div className="px-7 py-8 max-w-screen-xl mx-auto">
                   <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="mb-7">
-                    <h1 className="text-4xl font-black text-gray-900 leading-tight">Donation History</h1>
-                    <p className="text-gray-500 text-base mt-2 max-w-2xl leading-relaxed">
-                      Review your listing history. {history.length > 0 && <>You&apos;ve posted <span className="font-bold text-[#1a5c2e]">{history.length} items</span> totalling <span className="font-bold text-[#1a5c2e]">{analytics.totalQty} units</span>.</>}
+                    <h1 className="text-4xl font-black text-gray-900 dark:text-gray-50 leading-tight">Donation History</h1>
+                    <p className="text-gray-500 dark:text-gray-400 text-base mt-2 max-w-2xl leading-relaxed">
+                      Review your listing history. {history.length > 0 && <>You&apos;ve posted <span className="font-bold text-[#1a5c2e] dark:text-emerald-400">{history.length} items</span> totalling <span className="font-bold text-[#1a5c2e] dark:text-emerald-400">{analytics.totalQty} units</span>.</>}
                     </p>
                   </motion.div>
 
@@ -734,17 +727,17 @@ export default function DonorPage() {
                     <div className="space-y-5">
                       {historyLoading ? (
                         <div className="space-y-4">
-                          {[1, 2, 3].map((i) => <div key={i} className="h-36 bg-white rounded-2xl border border-[#e2ede2] animate-pulse" />)}
+                          {[1, 2, 3].map((i) => <div key={i} className="h-36 glass-panel rounded-2xl animate-pulse" />)}
                         </div>
                       ) : filteredHistory.length === 0 ? (
-                        <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-[#e2ede2]">
+                        <div className="text-center py-20 glass-panel rounded-2xl border border-dashed dark:border-white/15">
                           <History className="w-12 h-12 mx-auto mb-4 text-gray-200" />
                           <h3 className="text-lg font-bold text-gray-500">{history.length === 0 ? "No History Yet" : "No Matches"}</h3>
                           <p className="text-sm text-gray-400 mt-1">
                             {history.length === 0 ? "Your past food listings will appear here." : "Try changing your filters."}
                           </p>
                           {(histSearch || statusFilter !== "all" || dateFilter) && (
-                            <button onClick={() => { setHistSearch(""); setStatusFilter("all"); setDateFilter(""); }} className="mt-3 text-sm text-[#1a5c2e] font-semibold hover:underline">
+                            <button onClick={() => { setHistSearch(""); setStatusFilter("all"); setDateFilter(""); }} className="mt-3 text-sm text-[#1a5c2e] dark:text-emerald-400 font-semibold hover:underline">
                               Clear Filters
                             </button>
                           )}
@@ -758,17 +751,17 @@ export default function DonorPage() {
                             const st = getStatus(item);
                             const cfg = statusLabel[st];
                             const postDate = new Date(item.createdAt).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
-                            const expDate  = new Date(item.expiry_time).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+                            const expDate = new Date(item.expiry_time).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
                             const isExp = st === "expired";
 
                             return (
                               <motion.div
                                 key={item.id}
                                 initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04, duration: 0.32 }}
-                                className={`bg-white rounded-2xl border border-[#e2ede2] overflow-hidden ${isExp ? "opacity-70" : ""}`}
+                                className={`glass-panel rounded-2xl overflow-hidden ${isExp ? "opacity-70" : ""}`}
                               >
                                 <div className="flex gap-0">
-                                  <div className="w-32 sm:w-36 flex-shrink-0 self-stretch bg-gray-100 overflow-hidden relative">
+                                  <div className="w-32 sm:w-36 flex-shrink-0 self-stretch bg-gray-100 dark:bg-white/5 overflow-hidden relative">
                                     {item.image_url ? (
                                       <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
                                     ) : (
@@ -779,21 +772,21 @@ export default function DonorPage() {
 
                                   <div className="flex-1 p-4 space-y-2 min-w-0">
                                     <div className="flex items-start justify-between gap-2">
-                                      <h3 className={`font-black text-lg leading-tight ${isExp ? "text-gray-400" : "text-gray-900"}`}>{item.name}</h3>
+                                      <h3 className={`font-black text-lg leading-tight ${isExp ? "text-gray-400" : "text-gray-900 dark:text-gray-100"}`}>{item.name}</h3>
                                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black border flex-shrink-0 ${cfg.cls}`}>{cfg.label}</span>
                                     </div>
 
-                                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-500">
+                                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                                       <span>Qty: {item.quantity} units</span>
                                       <span>Posted: {postDate}</span>
                                       {item.dining_hall && <span>{item.dining_hall}</span>}
                                       {isExp ? (
                                         <span className="text-red-500 font-semibold">Expired: {expDate}</span>
                                       ) : (
-                                        <span className="text-emerald-600 font-semibold">Active</span>
+                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Active</span>
                                       )}
                                       {(item.Reservations?.length > 0) && (
-                                        <span className="text-blue-600 font-semibold">{item.Reservations.length} reservation(s)</span>
+                                        <span className="text-blue-600 dark:text-blue-400 font-semibold">{item.Reservations.length} reservation(s)</span>
                                       )}
                                     </div>
 
@@ -805,10 +798,10 @@ export default function DonorPage() {
 
                                     {!isExp && (
                                       <div className="flex gap-2 pt-1">
-                                        <button onClick={() => { setSelectedFood(item); setIsDetailsOpen(true); }} className="px-4 py-1.5 bg-white border border-[#e2ede2] rounded-lg text-xs font-bold text-gray-700 hover:bg-[#f6faf6] hover:border-[#1a5c2e]/30 transition-colors">
+                                        <button onClick={() => { setSelectedFood(item); setIsDetailsOpen(true); }} className="px-4 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 hover:border-[#1a5c2e]/30 transition-colors">
                                           View Details
                                         </button>
-                                        <button onClick={() => handleRepost(item)} className="px-4 py-1.5 bg-[#eef8ee] border border-[#c7efd4] rounded-lg text-xs font-bold text-[#1a5c2e] hover:bg-[#d4edda] transition-colors">
+                                        <button onClick={() => handleRepost(item)} className="px-4 py-1.5 bg-[#eef8ee] dark:bg-emerald-900/20 border border-[#c7efd4] dark:border-emerald-800 rounded-lg text-xs font-bold text-[#1a5c2e] dark:text-emerald-400 hover:bg-[#d4edda] dark:hover:bg-emerald-900/40 transition-colors">
                                           Re-post Similar
                                         </button>
                                       </div>
@@ -842,8 +835,8 @@ export default function DonorPage() {
                       </motion.div>
 
                       {/* Filter History */}
-                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.35 }} className="bg-white border border-[#e2ede2] rounded-2xl p-5 space-y-4">
-                        <p className="font-black text-gray-800 text-sm">Filter History</p>
+                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.35 }} className="glass-panel rounded-2xl p-5 space-y-4">
+                        <p className="font-black text-gray-800 dark:text-gray-100 text-sm">Filter History</p>
 
                         <div className="space-y-1.5">
                           <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Status</label>
@@ -852,11 +845,10 @@ export default function DonorPage() {
                               <button
                                 key={s}
                                 onClick={() => setStatusFilter(s)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                                  statusFilter === s
+                                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${statusFilter === s
                                     ? "bg-[#1a5c2e] text-white border-[#1a5c2e]"
-                                    : "bg-white text-gray-600 border-[#e2ede2] hover:border-[#1a5c2e]/40"
-                                }`}
+                                    : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-[#1a5c2e]/40"
+                                  }`}
                               >
                                 {s === "all" ? "All" : s === "available" ? "Active" : s === "picked_up" ? "Picked Up" : "Expired"}
                               </button>
@@ -870,25 +862,25 @@ export default function DonorPage() {
                             type="date"
                             value={dateFilter}
                             onChange={(e) => setDateFilter(e.target.value)}
-                            className="w-full h-9 bg-[#f6faf6] border border-[#e2ede2] rounded-xl px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1a5c2e]/20"
+                            className="w-full h-9 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3 text-sm text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#1a5c2e]/20"
                           />
                         </div>
 
                         {(histSearch || statusFilter !== "all" || dateFilter) && (
-                          <button onClick={() => { setHistSearch(""); setStatusFilter("all"); setDateFilter(""); }} className="w-full text-xs text-gray-400 hover:text-[#1a5c2e] font-semibold py-1 transition-colors">
+                          <button onClick={() => { setHistSearch(""); setStatusFilter("all"); setDateFilter(""); }} className="w-full text-xs text-gray-400 hover:text-[#1a5c2e] dark:hover:text-emerald-400 font-semibold py-1 transition-colors">
                             Clear all filters
                           </button>
                         )}
                       </motion.div>
 
                       {/* Help */}
-                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2, duration: 0.35 }} className="bg-[#eef8ee] border border-[#c7efd4] rounded-2xl p-4 flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#1a5c2e]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <HelpCircle className="w-4 h-4 text-[#1a5c2e]" />
+                      <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2, duration: 0.35 }} className="glass-panel rounded-2xl p-4 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#1a5c2e]/10 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <HelpCircle className="w-4 h-4 text-[#1a5c2e] dark:text-emerald-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-gray-700">Need Pickup Help?</p>
-                          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">Use the Verify Pickup tab to scan a student&apos;s QR code and confirm collection.</p>
+                          <p className="text-sm font-bold text-gray-700 dark:text-gray-200">Need Pickup Help?</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Use the Verify Pickup tab to scan a student&apos;s QR code and confirm collection.</p>
                         </div>
                       </motion.div>
                     </div>
@@ -904,12 +896,12 @@ export default function DonorPage() {
             ═══════════════════════════════════════════════ */}
             {activeTab === "analytics" && (
               <div className="min-h-screen">
-                <header className="bg-white border-b border-[#e2ede2] px-7 py-3.5 flex items-center justify-between sticky top-0 z-30">
-                  <h2 className="text-lg font-black text-[#1a5c2e] tracking-tight">Impact & Revenue</h2>
+                <header className="glass-header border-b border-gray-200/50 dark:border-white/10 px-7 py-3.5 flex items-center justify-between sticky top-0 z-30">
+                  <h2 className="text-lg font-black text-[#1a5c2e] dark:text-emerald-400 tracking-tight">Impact & Revenue</h2>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-[#e2ede2] text-[#1a5c2e] hover:bg-[#eef8ee] font-bold rounded-full"
+                    className="border-gray-200 dark:border-white/10 text-[#1a5c2e] dark:text-emerald-400 hover:bg-[#eef8ee] dark:hover:bg-emerald-900/20 font-bold rounded-full"
                     onClick={handleDownloadReport}
                   >
                     <Download className="w-4 h-4 mr-2" /> Export Report
@@ -919,13 +911,13 @@ export default function DonorPage() {
                 <div className="px-7 py-8 max-w-screen-xl mx-auto">
                   {historyLoading ? (
                     <div className="space-y-4">
-                      {[1, 2, 3].map((i) => <div key={i} className="h-36 bg-white rounded-2xl border border-[#e2ede2] animate-pulse" />)}
+                      {[1, 2, 3].map((i) => <div key={i} className="h-36 glass-panel rounded-2xl animate-pulse" />)}
                     </div>
                   ) : (
                     <div className="space-y-8">
                       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-                        <h1 className="text-4xl font-black text-gray-900 leading-tight mb-2">Your Impact</h1>
-                        <p className="text-gray-500 max-w-xl leading-relaxed">
+                        <h1 className="text-4xl font-black text-gray-900 dark:text-gray-50 leading-tight mb-2">Your Impact</h1>
+                        <p className="text-gray-500 dark:text-gray-400 max-w-xl leading-relaxed">
                           A complete breakdown of your donation activity, environmental impact, and community contributions.
                         </p>
                       </motion.div>
@@ -933,16 +925,16 @@ export default function DonorPage() {
                       {/* Top Stats Grid */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
-                          { label: "Total Listings",     value: analytics.totalItems,      icon: Package,    color: "from-[#1a5c2e] to-[#16502a]", text: "text-white" },
-                          { label: "Total Qty Shared",   value: analytics.totalQty,        icon: Utensils,   color: "from-white to-[#f6faf6]", border: true, text: "text-gray-900" },
-                          { label: "Reservations Made",  value: analytics.totalReservations, icon: Award,    color: "from-white to-[#f6faf6]", border: true, text: "text-gray-900" },
-                          { label: "Items Picked Up",    value: analytics.pickedUpItems,   icon: TrendingUp, color: "from-white to-[#f6faf6]", border: true, text: "text-gray-900" },
+                          { label: "Total Listings", value: analytics.totalItems, icon: Package, color: "from-[#1a5c2e] to-[#16502a]", text: "text-white" },
+                          { label: "Total Qty Shared", value: analytics.totalQty, icon: Utensils, color: "from-white dark:from-white/5 to-[#f6faf6] dark:to-black/20", border: true, text: "text-gray-900 dark:text-gray-100" },
+                          { label: "Reservations Made", value: analytics.totalReservations, icon: Award, color: "from-white dark:from-white/5 to-[#f6faf6] dark:to-black/20", border: true, text: "text-gray-900 dark:text-gray-100" },
+                          { label: "Items Picked Up", value: analytics.pickedUpItems, icon: TrendingUp, color: "from-white dark:from-white/5 to-[#f6faf6] dark:to-black/20", border: true, text: "text-gray-900 dark:text-gray-100" },
                         ].map(({ label, value, icon: Icon, color, border, text }) => (
                           <motion.div
                             key={label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                            className={`bg-gradient-to-br ${color} ${border ? "border border-[#e2ede2]" : ""} rounded-2xl p-5 relative overflow-hidden`}
+                            className={`bg-gradient-to-br ${color} ${border ? "border border-gray-200 dark:border-white/10" : ""} rounded-2xl p-5 relative overflow-hidden`}
                           >
-                            <Icon className={`w-5 h-5 ${text === "text-white" ? "text-white/60" : "text-[#1a5c2e]"} mb-3`} />
+                            <Icon className={`w-5 h-5 ${text === "text-white" ? "text-white/60" : "text-[#1a5c2e] dark:text-emerald-400"} mb-3`} />
                             <p className={`text-3xl font-black ${text}`}>{value}</p>
                             <p className={`text-[10px] font-bold ${text === "text-white" ? "text-white/60" : "text-gray-400"} uppercase tracking-widest mt-1`}>{label}</p>
                           </motion.div>
@@ -974,20 +966,20 @@ export default function DonorPage() {
                           </div>
                         </Card>
 
-                        <Card className="p-6 bg-white border border-[#e2ede2] rounded-2xl">
+                        <Card className="p-6 glass-panel border border-gray-200 dark:border-white/10 rounded-2xl">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Listing Status Breakdown</p>
                           <div className="space-y-4">
                             {[
                               { label: "Active Listings", value: analytics.activeItems, total: analytics.totalItems, color: "bg-emerald-500" },
-                              { label: "Picked Up",   value: analytics.pickedUpItems, total: analytics.totalItems, color: "bg-blue-500" },
-                              { label: "Expired",     value: analytics.expiredItems, total: analytics.totalItems, color: "bg-red-400" },
+                              { label: "Picked Up", value: analytics.pickedUpItems, total: analytics.totalItems, color: "bg-blue-500" },
+                              { label: "Expired", value: analytics.expiredItems, total: analytics.totalItems, color: "bg-red-400" },
                             ].map(({ label, value, total, color }) => (
                               <div key={label}>
-                                <div className="flex justify-between text-sm font-semibold text-gray-700 mb-1">
+                                <div className="flex justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                                   <span>{label}</span>
                                   <span>{value} / {total}</span>
                                 </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-2 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
                                   <motion.div
                                     initial={{ width: 0 }} animate={{ width: `${total > 0 ? (value / total) * 100 : 0}%` }}
                                     transition={{ duration: 0.8, ease: "easeOut" }}
@@ -1001,10 +993,10 @@ export default function DonorPage() {
                       </div>
 
                       {/* CTA */}
-                      <div className="bg-[#eef8ee] border border-[#c7efd4] rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="glass-action-card rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div>
-                          <p className="font-black text-gray-900 text-lg">Keep the impact growing!</p>
-                          <p className="text-gray-500 text-sm mt-1">Post your next batch of surplus food to earn more impact points.</p>
+                          <p className="font-black text-gray-900 dark:text-gray-100 text-lg">Keep the impact growing!</p>
+                          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Post your next batch of surplus food to earn more impact points.</p>
                         </div>
                         <Button onClick={() => setActiveTab("post")} className="bg-[#1a5c2e] hover:bg-[#16502a] text-white font-bold rounded-full px-8 flex-shrink-0">
                           <PlusCircle className="w-4 h-4 mr-2" /> Post New Food
@@ -1022,10 +1014,10 @@ export default function DonorPage() {
         {/* MOBILE BOTTOM NAV */}
         <nav className="fixed bottom-0 w-full bg-background/95 backdrop-blur-md border-t border-border flex md:hidden items-center justify-around p-2 z-50 pb-safe">
           {([
-            { id: "post",      icon: PlusCircle },
-            { id: "pickup",    icon: ScanLine   },
-            { id: "history",   icon: History    },
-            { id: "analytics", icon: BarChart3  },
+            { id: "post", icon: PlusCircle },
+            { id: "pickup", icon: ScanLine },
+            { id: "history", icon: History },
+            { id: "analytics", icon: BarChart3 },
           ] as const).map(({ id, icon: Icon }) => (
             <Button key={id} variant="ghost" className={`flex-col h-14 w-14 ${activeTab === id ? "text-green-500" : "text-muted-foreground"}`} onClick={() => setActiveTab(id)}>
               <Icon size={20} />

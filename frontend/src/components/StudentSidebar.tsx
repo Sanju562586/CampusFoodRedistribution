@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
+import { ModeToggle } from "@/components/mode-toggle";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UtensilsCrossed,
@@ -47,7 +48,7 @@ export default function StudentSidebar() {
       variants={sidebarVariants}
       initial="hidden"
       animate="visible"
-      className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-56 bg-[#eef8ee] z-40 border-r border-[#d4edda]"
+      className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-56 glass-sidebar z-40"
     >
       {/* ── Brand ── */}
       <motion.div variants={itemVariants} className="px-5 pt-7 pb-5">
@@ -72,12 +73,11 @@ export default function StudentSidebar() {
 
           return (
             <motion.div key={label} variants={itemVariants} className="relative">
-              {/* Active background pill — animates with layoutId */}
               <AnimatePresence>
                 {active && (
                   <motion.div
                     layoutId="sidebar-active-pill"
-                    className="absolute inset-0 bg-white rounded-xl shadow-sm"
+                    className="absolute inset-0 glass-nav-pill rounded-xl"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
@@ -90,8 +90,8 @@ export default function StudentSidebar() {
                 href={href}
                 className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 group z-10 ${
                   active
-                    ? "text-[#1a5c2e] font-semibold"
-                    : "text-gray-500 hover:text-gray-800"
+                    ? "text-emerald-700 dark:text-emerald-400 font-semibold"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 }`}
               >
                 <motion.div
@@ -100,7 +100,9 @@ export default function StudentSidebar() {
                 >
                   <Icon
                     className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                      active ? "text-[#1a5c2e]" : "text-gray-400 group-hover:text-gray-600"
+                      active
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"
                     }`}
                   />
                 </motion.div>
@@ -111,12 +113,17 @@ export default function StudentSidebar() {
         })}
       </nav>
 
-      {/* ── Bottom ── */}
-      <motion.div variants={itemVariants} className="px-4 pb-6">
+      {/* ── Bottom: Theme + Help ── */}
+      <motion.div variants={itemVariants} className="px-4 pb-6 space-y-2">
+        {/* Theme toggle row */}
+        <div className="flex items-center justify-between px-3 py-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Appearance</span>
+          <ModeToggle />
+        </div>
         <motion.button
-          whileHover={{ scale: 1.02, backgroundColor: "#e5f5e9" }}
+          whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
-          className="w-full flex items-center justify-center gap-2 text-gray-400 text-sm py-2 transition-colors rounded-xl"
+          className="w-full flex items-center justify-center gap-2 text-gray-400 dark:text-gray-500 text-sm py-2 transition-colors rounded-xl hover:text-gray-600 dark:hover:text-gray-300"
         >
           <HelpCircle className="w-4 h-4" />
           Help Center

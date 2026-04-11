@@ -17,7 +17,7 @@ export default function DashboardLayout({
       disableTransitionOnChange
       storageKey="theme-student"
     >
-      <div className="min-h-screen bg-[#eef8ee]">
+      <div className="min-h-screen bg-[#eef8ee] dark:bg-transparent">
         {/* Desktop sidebar — fixed, 224px wide */}
         <StudentSidebar />
 

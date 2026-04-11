@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/lib/axios";
-import FluidFoodCard from "@/components/FluidFoodCard";
+import FluidFoodCard, { getFoodImage } from "@/components/FluidFoodCard";
+import ReserveModal from "@/components/ReserveModal";
 import BrandLogo from "@/components/BrandLogo";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { getAuth, clearAuth } from "@/lib/auth";
 import Pusher from "pusher-js";
 import ProfileTab from "@/components/ProfileTab";
+import { ModeToggle } from "@/components/mode-toggle";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
   Search,
@@ -76,52 +78,52 @@ function AnimatedCounter({ value }: { value: number }) {
 
 // ── Trending card — uses real top food item ────────────────────────────────
 function TrendingNearbyCard({ topFood }: { topFood: any | null }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
   if (!topFood) return null;
   return (
-    <motion.div
-      variants={fadeUp}
-      custom={0}
-      whileHover={{ scale: 1.015 }}
-      transition={{ type: "spring", stiffness: 260, damping: 22 }}
-      className="relative rounded-2xl overflow-hidden h-52 lg:h-full min-h-[200px] bg-gradient-to-br from-gray-700 to-gray-900 cursor-pointer"
-    >
-      {topFood.image_url ? (
-        <img src={topFood.image_url} alt={topFood.name} className="absolute inset-0 w-full h-full object-cover opacity-60" />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center opacity-15 text-[180px] select-none pointer-events-none">
-          🥗
+    <>
+      <ReserveModal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        food={topFood}
+      />
+      <motion.div
+        variants={fadeUp}
+        custom={0}
+        whileHover={{ scale: 1.012, y: -4 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        className="relative rounded-3xl overflow-hidden min-h-[220px] h-full cursor-pointer"
+      >
+        {/* Background */}
+        <img
+          src={getFoodImage(topFood)}
+          alt={topFood.name}
+          className="absolute inset-0 w-full h-full object-cover opacity-75"
+        />
+        {/* Overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(145deg, rgba(255,255,255,0.10) 0%, transparent 55%)" }} />
+        <div className="absolute inset-0 rounded-3xl border border-white/15 pointer-events-none" />
+        {/* Content */}
+        <div className="absolute inset-0 p-6 flex flex-col justify-end">
+          <span className="inline-block glass-pill text-white text-[11px] font-bold px-3 py-1 rounded-full w-fit mb-2 uppercase tracking-wider" style={{ background: "rgba(255,255,255,0.15)" }}>
+            🔥 Trending
+          </span>
+          <h4 className="text-xl font-black text-white leading-tight mb-1">{topFood.name}</h4>
+          <p className="text-xs text-white/75 mb-4 leading-relaxed max-w-xs">
+            {topFood.dining_hall || topFood.location || "Campus dining"} · {topFood.quantity} unit{topFood.quantity !== 1 ? "s" : ""} remaining.
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.96 }}
+            className="glass-btn text-white font-bold text-sm px-5 py-2.5 rounded-full w-fit"
+            onClick={() => setIsModalOpen(true)}
+          >
+            Reserve Now
+          </motion.button>
         </div>
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-      <div className="absolute inset-0 p-6 flex flex-col justify-end">
-        <motion.span
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.5, duration: 0.4 }}
-          className="inline-block bg-[#22c55e] text-white text-[11px] font-bold px-3 py-1 rounded-full w-fit mb-2 uppercase tracking-wider"
-        >
-          🔥 Trending Nearby
-        </motion.span>
-        <h4 className="text-xl font-black text-white leading-tight mb-1">
-          {topFood.name}
-        </h4>
-        <p className="text-xs text-white/75 mb-4 leading-relaxed max-w-xs">
-          Available at {topFood.dining_hall || topFood.location || "campus dining"}.{" "}
-          {topFood.quantity} unit{topFood.quantity !== 1 ? "s" : ""} remaining.
-        </p>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.96 }}
-          className="bg-white text-gray-900 font-bold text-sm px-5 py-2.5 rounded-full w-fit hover:bg-gray-100 transition-colors"
-          onClick={() => {
-            const el = document.getElementById("food-grid-section");
-            el?.scrollIntoView({ behavior: "smooth" });
-          }}
-        >
-          Reserve Now
-        </motion.button>
-      </div>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }
 
@@ -131,11 +133,14 @@ function ZeroWasteCard({ activeStudents }: { activeStudents: number }) {
     <motion.div
       variants={fadeUp}
       custom={1}
-      whileHover={{ scale: 1.015 }}
+      whileHover={{ scale: 1.015, y: -4 }}
       transition={{ type: "spring", stiffness: 260, damping: 22 }}
-      className="bg-[#fde8d8] rounded-2xl p-6 flex flex-col justify-between min-h-[200px] cursor-default"
+      className="relative glass-card rounded-3xl p-6 flex flex-col justify-between min-h-[200px] cursor-default overflow-hidden"
     >
-      <div>
+      <div className="relative z-10">
+        <span className="inline-block text-[10px] font-black text-orange-600 bg-orange-100 border border-orange-200 px-2.5 py-0.5 rounded-full uppercase tracking-widest mb-3">
+          ⚡ Weekly Challenge
+        </span>
         <h4 className="text-lg font-extrabold text-[#b5451b] leading-tight">
           Zero Waste Hero
         </h4>
@@ -144,7 +149,7 @@ function ZeroWasteCard({ activeStudents }: { activeStudents: number }) {
           and earn 50 bonus impact points.
         </p>
       </div>
-      <div className="flex items-center gap-2 mt-5">
+      <div className="flex items-center gap-2 mt-5 relative z-10">
         <div className="flex -space-x-2">
           {["🧑", "👩", "🧔"].map((emoji, i) => (
             <motion.div
@@ -152,7 +157,7 @@ function ZeroWasteCard({ activeStudents }: { activeStudents: number }) {
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.6 + i * 0.1 }}
-              className="w-7 h-7 rounded-full bg-white border-2 border-[#fde8d8] flex items-center justify-center text-sm shadow-sm"
+              className="w-7 h-7 rounded-full bg-white/80 backdrop-blur-sm border-2 border-white flex items-center justify-center text-sm shadow-sm"
             >
               {emoji}
             </motion.div>
@@ -162,7 +167,7 @@ function ZeroWasteCard({ activeStudents }: { activeStudents: number }) {
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.9 }}
-              className="w-7 h-7 rounded-full bg-[#b5451b] border-2 border-[#fde8d8] flex items-center justify-center text-[10px] font-black text-white shadow-sm"
+              className="w-7 h-7 rounded-full bg-[#b5451b] border-2 border-white flex items-center justify-center text-[10px] font-black text-white shadow-sm"
             >
               +{activeStudents > 99 ? "99" : activeStudents - 3}
             </motion.div>
@@ -265,12 +270,12 @@ function DashboardContent() {
       const [foodRes, userRes, leaderboardRes] = await Promise.all([
         api.get("/food/available"),
         api.get("/auth/user/me").catch(() => ({ data: getAuth() })),
-        api.get("/auth/users").catch(() => ({ data: [] })),
+        api.get("/auth/leaderboard").catch(() => ({ data: [] })),
       ]);
       setFoods(foodRes.data);
       setUserInfo(userRes.data);
-      const students = (leaderboardRes.data as any[]).filter((u: any) => u.role === "student");
-      setActiveStudents(students.length);
+      // Fallback number based on leaderboard active top users
+      setActiveStudents(leaderboardRes.data.length || 0);
     } catch (err) {
       console.error("Failed to fetch dashboard data", err);
     } finally {
@@ -354,9 +359,9 @@ function DashboardContent() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="min-h-screen bg-[#eef8ee]"
+        className="mac-page"
       >
-        <div className="lg:hidden bg-white px-5 pt-12 pb-4 flex items-center justify-between border-b border-gray-100 sticky top-0 z-40">
+        <div className="lg:hidden glass-header px-5 pt-12 pb-4 flex items-center justify-between sticky top-0 z-40">
           <BrandLogo
             size={32}
             subtitle="Student Portal"
@@ -376,14 +381,14 @@ function DashboardContent() {
 
   // ── Food browse ──
   return (
-    <div className="min-h-screen bg-[#eef8ee]">
+    <div className="mac-page">
 
       {/* ══ TOP HEADER ══ */}
       <motion.header
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="bg-[#eef8ee] px-5 lg:px-7 py-3.5 flex items-center gap-4 sticky top-0 z-30 border-b border-[#d4edda]"
+        className="glass-header px-5 lg:px-7 py-3.5 flex items-center gap-4 sticky top-0 z-30"
       >
         {/* Search */}
         <div className="flex-1 max-w-lg">
@@ -477,13 +482,14 @@ function DashboardContent() {
               )}
             </AnimatePresence>
           </div>
+          <ModeToggle />
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className="p-2 hover:bg-white rounded-full transition-colors"
+            className="p-2 hover:bg-white/60 rounded-full transition-colors"
             onClick={() => alert("Messages coming soon!")}
           >
-            <MessageSquare className="w-5 h-5 text-gray-500" />
+            <MessageSquare className="w-5 h-5 text-gray-500 dark:text-gray-400" />
           </motion.button>
           
           <motion.button
@@ -501,10 +507,10 @@ function DashboardContent() {
             onClick={() => setActiveTab("profile")}
           >
             <div className="text-right">
-              <p className="text-sm font-bold text-gray-800 leading-tight group-hover:text-[#1a5c2e] transition-colors">
+              <p className="text-sm font-bold text-gray-800 dark:text-gray-100 leading-tight group-hover:text-[#1a5c2e] dark:group-hover:text-emerald-400 transition-colors">
                 {userInfo?.name || "Student"}
               </p>
-              <p className="text-[11px] text-gray-400 leading-tight">Student Member</p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-tight">Student Member</p>
             </div>
             <motion.div
               whileHover={{ scale: 1.08 }}
@@ -536,13 +542,13 @@ function DashboardContent() {
             <motion.p variants={fadeUp} className="text-xs font-bold text-[#22c55e] uppercase tracking-widest mb-3">
               CampusFood Network
             </motion.p>
-            <motion.h1 variants={fadeUp} className="text-3xl lg:text-4xl font-black text-gray-900 leading-tight mb-0.5">
+            <motion.h1 variants={fadeUp} className="text-3xl lg:text-4xl font-black text-gray-900 dark:text-gray-50 leading-tight mb-0.5">
               Hello, {userInfo?.name || "Student"}!
             </motion.h1>
-            <motion.h2 variants={fadeUp} className="text-3xl lg:text-4xl font-black text-[#1a5c2e] leading-tight mb-4">
+            <motion.h2 variants={fadeUp} className="text-3xl lg:text-4xl font-black text-[#1a5c2e] dark:text-emerald-400 leading-tight mb-4">
               Find freshness around you.
             </motion.h2>
-            <motion.p variants={fadeUp} className="text-sm text-gray-500 max-w-sm leading-relaxed">
+            <motion.p variants={fadeUp} className="text-sm text-gray-500 dark:text-gray-400 max-w-sm leading-relaxed">
               Join the{" "}
               <span className="font-bold text-[#1a5c2e]">
                 {activeStudents > 0 ? activeStudents.toLocaleString() : "…"} student{activeStudents !== 1 ? "s" : ""}
@@ -666,7 +672,7 @@ function DashboardContent() {
                 className={`relative px-4 py-2 rounded-full text-sm font-semibold transition-colors duration-200 ${
                   selectedCategory === cat
                     ? "text-white"
-                    : "bg-white text-gray-600 border border-gray-200 hover:border-[#22c55e]/50 hover:text-gray-800"
+                    : "bg-white dark:bg-white/8 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/15 hover:border-[#22c55e]/50 hover:text-gray-800 dark:hover:text-white"
                 }`}
               >
                 {selectedCategory === cat && (
@@ -686,8 +692,8 @@ function DashboardContent() {
                 onClick={() => setShowLocationMenu((p) => !p)}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors duration-200 border ${
                   selectedLocation !== "All Locations" 
-                    ? "bg-[#eef8ee] text-[#1a5c2e] border-[#1a5c2e]/40" 
-                    : "bg-white text-gray-600 border-gray-200 hover:border-[#22c55e]/50 hover:text-gray-800"
+                    ? "bg-[#eef8ee] dark:bg-emerald-900/30 text-[#1a5c2e] dark:text-emerald-400 border-[#1a5c2e]/40 dark:border-emerald-500/30" 
+                    : "bg-white dark:bg-white/8 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/15 hover:border-[#22c55e]/50 hover:text-gray-800 dark:hover:text-white"
                 }`}
               >
                 <MapPin className="w-4 h-4" />
@@ -702,13 +708,13 @@ function DashboardContent() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.97 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute left-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 z-20 min-w-[200px] max-h-60 overflow-y-auto"
+                    className="absolute left-0 top-full mt-2 glass-dropdown rounded-xl py-1.5 z-20 min-w-[200px] max-h-60 overflow-y-auto"
                   >
                     {availableLocations.map((loc) => (
                       <button
                         key={loc}
                         onClick={() => { setSelectedLocation(loc); setShowLocationMenu(false); }}
-                        className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-[#eef8ee] ${selectedLocation === loc ? "text-[#22c55e] font-bold" : "text-gray-700"}`}
+                        className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-[#eef8ee] dark:hover:bg-white/8 ${selectedLocation === loc ? "text-[#22c55e] font-bold" : "text-gray-700 dark:text-gray-300"}`}
                       >
                         {loc}
                       </button>
@@ -723,7 +729,7 @@ function DashboardContent() {
           <div className="relative">
             <button
               onClick={() => setShowSortMenu((p) => !p)}
-              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors bg-white/80 px-3 py-1.5 rounded-full border border-gray-200"
+              className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors bg-white/80 dark:bg-white/8 px-3 py-1.5 rounded-full border border-gray-200 dark:border-white/15"
             >
               <SlidersHorizontal className="w-4 h-4" />
               <span>Sort by:</span>
@@ -737,13 +743,13 @@ function DashboardContent() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.97 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 z-20 min-w-[160px]"
+                  className="absolute right-0 top-full mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-lg py-1.5 z-20 min-w-[160px]"
                 >
                   {(Object.entries(sortLabels) as [SortOrder, string][]).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => { setSortOrder(key); setShowSortMenu(false); }}
-                      className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-[#eef8ee] ${sortOrder === key ? "text-[#22c55e] font-bold" : "text-gray-700"}`}
+                      className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-[#eef8ee] dark:hover:bg-white/10 ${sortOrder === key ? "text-[#22c55e] font-bold" : "text-gray-700 dark:text-gray-300"}`}
                     >
                       {label}
                     </button>
@@ -764,8 +770,8 @@ function DashboardContent() {
           ref={foodGridRef}
         >
           <div>
-            <h3 className="text-xl font-extrabold text-gray-900">All Available Food</h3>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <h3 className="text-xl font-extrabold text-gray-900 dark:text-gray-50">All Available Food</h3>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
               {foods.length > 0
                 ? `${filteredFoods.length} item${filteredFoods.length !== 1 ? "s" : ""} available · sorted by ${sortLabels[sortOrder].toLowerCase()}`
                 : "Curated surplus from campus dining halls and cafes."}
@@ -783,48 +789,48 @@ function DashboardContent() {
         </motion.div>
 
         {/* ── FOOD GRID ── */}
-        <AnimatePresence mode="wait">
-          {filteredFoods.length === 0 ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ duration: 0.25 }}
-              className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200"
-            >
-              <span className="text-5xl">🍽️</span>
-              <h3 className="text-lg font-semibold mt-4 text-gray-700">
-                No food available right now
-              </h3>
-              <p className="text-gray-400 text-sm mt-1">
-                {searchQuery
-                  ? `No results for "${searchQuery}". Try a different search.`
-                  : "Check back later for new listings!"}
-              </p>
-              {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="mt-3 text-sm text-[#22c55e] font-semibold hover:underline">
-                  Clear search
-                </button>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key={selectedCategory + searchQuery + sortOrder}
-              variants={staggerContainer}
-              initial="hidden"
-              animate="visible"
-              exit={{ opacity: 0 }}
-              className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5"
-            >
+        {filteredFoods.length === 0 ? (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25 }}
+            className="text-center py-16 glass-card rounded-3xl"
+          >
+            <span className="text-5xl">🍽️</span>
+            <h3 className="text-lg font-semibold mt-4 text-gray-700">
+              No food available right now
+            </h3>
+            <p className="text-gray-400 text-sm mt-1">
+              {searchQuery
+                ? `No results for "${searchQuery}". Try a different search.`
+                : "Check back later for new listings!"}
+            </p>
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="mt-3 text-sm text-[#22c55e] font-semibold hover:underline">
+                Clear search
+              </button>
+            )}
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            <AnimatePresence mode="popLayout">
               {filteredFoods.map((food: any) => (
-                <motion.div key={food.id} variants={cardVariants} layout>
+                <motion.div
+                  key={food.id}
+                  variants={cardVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  layout
+                  className="h-full"
+                >
                   <FluidFoodCard food={food} />
                 </motion.div>
               ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* ── BOTTOM PROMO SECTION ── */}
         <motion.div
@@ -846,7 +852,7 @@ export default function DashboardPage() {
     <ProtectedRoute allowedRole="student">
       <Suspense
         fallback={
-          <div className="min-h-screen flex items-center justify-center bg-[#eef8ee]">
+          <div className="mac-page flex items-center justify-center">
             <div className="w-10 h-10 rounded-full border-4 border-[#1a5c2e] border-t-transparent animate-spin" />
           </div>
         }

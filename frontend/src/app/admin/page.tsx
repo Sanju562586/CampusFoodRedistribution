@@ -275,7 +275,7 @@ export default function AdminPage() {
       !userSearch
         ? true
         : u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
-          u.email?.toLowerCase().includes(userSearch.toLowerCase())
+        u.email?.toLowerCase().includes(userSearch.toLowerCase())
     );
 
   const paginatedUsers = filteredUsers.slice(userPage * PAGE_SIZE, (userPage + 1) * PAGE_SIZE);
@@ -313,7 +313,7 @@ export default function AdminPage() {
         {activeTab === id && (
           <motion.div
             layoutId="admin-sidebar-active-pill"
-            className="absolute inset-0 bg-white rounded-xl shadow-sm"
+            className="absolute inset-0 glass-nav-active rounded-xl"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -329,9 +329,8 @@ export default function AdminPage() {
             setSelectedEntity(null);
           }
         }}
-        className={`group relative w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150 rounded-xl z-10 ${
-          activeTab === id ? "text-[#1a5c2e] font-semibold" : "text-gray-500 hover:text-gray-800 hover:bg-[#e5f5e9]"
-        }`}
+        className={`group relative w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150 rounded-xl z-10 ${activeTab === id ? "text-[#1a5c2e] dark:text-emerald-400 font-semibold" : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-[#e5f5e9] dark:hover:bg-white/10"
+          }`}
       >
         <motion.div whileHover={{ scale: 1.15 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
           <Icon className={`size-4 flex-shrink-0 transition-colors ${activeTab === id ? "text-[#1a5c2e]" : "text-gray-400 group-hover:text-gray-600"}`} />
@@ -365,10 +364,10 @@ export default function AdminPage() {
 
   return (
     <ProtectedRoute allowedRole="admin">
-      <div className="flex min-h-screen bg-[#F0F5F2] dark:bg-background text-foreground font-sans selection:bg-emerald-500/30">
+      <div className="flex mac-page text-foreground font-sans selection:bg-emerald-500/30">
 
         {/* ── SIDEBAR ── */}
-        <aside className="w-56 border-r border-[#d4edda] bg-[#eef8ee] flex-col hidden lg:flex fixed top-0 left-0 h-screen z-40">
+        <aside className="w-56 glass-sidebar flex-col hidden lg:flex fixed top-0 left-0 h-screen z-40">
           <div className="px-5 pt-7 pb-5">
             <BrandLogo
               size={38}
@@ -379,16 +378,16 @@ export default function AdminPage() {
           </div>
 
           <nav className="flex-1 flex flex-col w-full">
-            <SidebarItem id="overview"   label="Dashboard"       icon={LayoutDashboard} />
-            <SidebarItem id="food"       label="Food Oversight"  icon={HeartHandshake}  />
-            <SidebarItem id="users"      label="Partners"        icon={Users}           />
-            <SidebarItem id="logistics"  label="Logistics"       icon={Truck}           />
-            <SidebarItem id="analytics"  label="Analytics"       icon={TrendingUp}      />
+            <SidebarItem id="overview" label="Dashboard" icon={LayoutDashboard} />
+            <SidebarItem id="food" label="Food Oversight" icon={HeartHandshake} />
+            <SidebarItem id="users" label="Partners" icon={Users} />
+            <SidebarItem id="logistics" label="Logistics" icon={Truck} />
+            <SidebarItem id="analytics" label="Analytics" icon={TrendingUp} />
             <div className="mt-4 mb-2 px-6">
-              <div className="h-px w-full bg-[#d4edda]" />
+              <div className="h-px w-full bg-[#d4edda] dark:bg-white/10" />
             </div>
-            <SidebarItem id="logs"       label="Activity Logs"   icon={Terminal}        />
-            <SidebarItem id="godmode"    label="God Mode"        icon={Shield}          />
+            <SidebarItem id="logs" label="Activity Logs" icon={Terminal} />
+            <SidebarItem id="godmode" label="God Mode" icon={Shield} />
           </nav>
 
           <div className="px-4 pb-6 mt-auto">
@@ -439,8 +438,6 @@ export default function AdminPage() {
             ══════════════════════════════════════════════════════ */}
             {activeTab === "overview" && (
               <div className="space-y-10 relative">
-                <div className="absolute -top-20 -left-20 -z-10 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] mix-blend-screen pointer-events-none" />
-                <div className="absolute top-40 -right-20 -z-10 w-[500px] h-[500px] bg-teal-500/10 rounded-full blur-[100px] mix-blend-screen pointer-events-none" />
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 z-10 relative">
                   <div>
@@ -506,11 +503,10 @@ export default function AdminPage() {
                       <div className="flex-1 space-y-5">
                         <Badge
                           variant="destructive"
-                          className={`border-none rounded-full px-4 py-1 text-xs font-bold uppercase tracking-wider ${
-                            analytics?.analysis === "Low Waste Risk"
+                          className={`border-none rounded-full px-4 py-1 text-xs font-bold uppercase tracking-wider ${analytics?.analysis === "Low Waste Risk"
                               ? "bg-green-500 hover:bg-green-500"
                               : "bg-[#FF453A] hover:bg-[#FF453A]"
-                          } text-white`}
+                            } text-white`}
                         >
                           {analytics?.analysis ?? "Loading..."}
                         </Badge>
@@ -805,11 +801,10 @@ export default function AdminPage() {
                           key={f}
                           variant="ghost"
                           size="sm"
-                          className={`rounded-full px-5 text-sm font-bold transition-colors ${
-                            userFilter === f
+                          className={`rounded-full px-5 text-sm font-bold transition-colors ${userFilter === f
                               ? "bg-card text-foreground shadow-sm"
                               : "text-muted-foreground hover:bg-card/50 hover:text-foreground"
-                          }`}
+                            }`}
                           onClick={() => { setUserFilter(f); setUserPage(0); }}
                         >
                           {f === "all" ? "All Users" : f === "donor" ? "Donors" : "Students"}
@@ -1059,23 +1054,23 @@ export default function AdminPage() {
                   if (!selectedGroup) return null;
 
                   return (
-                    <div className="bg-[#fcfdfc] p-6 sm:p-8 rounded-[2rem] shadow-sm mt-6 border border-border/40">
+                    <div className="glass-panel p-6 sm:p-8 rounded-[2rem] mt-6">
                       <div className="flex justify-between items-end mb-8 border-b border-border/40 pb-6">
                         <div>
-                          <h2 className="text-3xl font-black tracking-tight text-gray-900 dark:text-foreground">
+                          <h2 className="text-3xl font-black tracking-tight text-foreground">
                             Live Inventory
                           </h2>
-                          <p className="text-xs font-bold text-gray-500 mt-2 uppercase tracking-widest flex items-center gap-2">
+                          <p className="text-xs font-bold text-muted-foreground mt-2 uppercase tracking-widest flex items-center gap-2">
                             <Users className="w-4 h-4" /> {selectedGroup.name} <span className="opacity-50">•</span> {selectedGroup.foods.length} ACTIVE ITEMS
                           </p>
                         </div>
                         <div className="hidden sm:flex gap-6">
-                          <span className="font-bold text-sm text-[#1a5c2e] border-b-[3px] border-[#1a5c2e] pb-1.5 cursor-pointer">All Items</span>
-                          <span className="font-bold text-sm text-gray-400 hover:text-gray-600 pb-1.5 cursor-pointer">Perishables</span>
-                          <span className="font-bold text-sm text-gray-400 hover:text-gray-600 pb-1.5 cursor-pointer">Canned Goods</span>
+                          <span className="font-bold text-sm text-[#1a5c2e] dark:text-emerald-400 border-b-[3px] border-[#1a5c2e] dark:border-emerald-400 pb-1.5 cursor-pointer">All Items</span>
+                          <span className="font-bold text-sm text-muted-foreground hover:text-foreground pb-1.5 cursor-pointer">Perishables</span>
+                          <span className="font-bold text-sm text-muted-foreground hover:text-foreground pb-1.5 cursor-pointer">Canned Goods</span>
                         </div>
                       </div>
-                  
+
                       <div className="space-y-8">
                         {selectedGroup.foods.map((f: any, index: number) => {
                           const isExpired = new Date(f.expiry_time) < new Date();
@@ -1084,12 +1079,12 @@ export default function AdminPage() {
                           const postedDate = new Date(f.createdAt || Date.now());
                           const hoursUntilExpiry = Math.max(0, Math.floor((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60)));
                           const daysUntilExpiry = Math.floor(hoursUntilExpiry / 24);
-                          
+
                           // Dynamic coloring based on index/type to match screenshot diversity
                           const catColor = index % 2 === 0 ? "bg-[#1a5c2e]" : "bg-[#c44919]";
-                          
+
                           return (
-                            <div key={f.id} className="bg-white dark:bg-card rounded-[2rem] overflow-hidden flex flex-col md:flex-row shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-border/50 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                            <div key={f.id} className="glass-panel rounded-[2rem] overflow-hidden flex flex-col md:flex-row hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                               {/* Left Image Section */}
                               <div className="w-full md:w-[40%] h-64 md:h-auto relative bg-black shrink-0">
                                 {f.image_url ? (
@@ -1101,7 +1096,7 @@ export default function AdminPage() {
                                 )}
                                 {/* Gradient Overlay */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-90 pointer-events-none" />
-                                
+
                                 <div className="absolute bottom-6 left-6 right-6">
                                   <Badge className={`${catColor} hover:${catColor} text-white tracking-[0.15em] text-[9px] uppercase font-black px-2.5 py-1 mb-3 rounded-md`}>
                                     CATEGORY: {f.allergens && f.allergens.length > 0 ? f.allergens[0] : "PRODUCE"}
@@ -1112,7 +1107,7 @@ export default function AdminPage() {
                                   </div>
                                 </div>
                               </div>
-                  
+
                               {/* Right Info Section */}
                               <div className="p-8 w-full flex flex-col justify-between">
                                 {/* Top Row: Title and Status */}
@@ -1140,7 +1135,7 @@ export default function AdminPage() {
                                     </div>
                                   </div>
                                 </div>
-                  
+
                                 {/* Middle Row: Grid Info */}
                                 <div className="grid grid-cols-2 gap-6 mb-10">
                                   <div className="flex gap-4 items-center">
@@ -1166,7 +1161,7 @@ export default function AdminPage() {
                                     </div>
                                   </div>
                                 </div>
-                  
+
                                 {/* Bottom Row: Actions */}
                                 <div className="flex items-center justify-between mt-auto">
                                   <div className="flex -space-x-3">
@@ -1182,9 +1177,9 @@ export default function AdminPage() {
                                       </div>
                                     )}
                                   </div>
-                                  
+
                                   <div className="flex gap-4 items-center">
-                                    <span className="text-gray-400 hover:text-red-500 text-xs font-bold uppercase tracking-widest cursor-pointer transition-colors" onClick={() => handleDeleteFood(f.id)}>
+                                    <span className="text-muted-foreground hover:text-red-500 text-xs font-bold uppercase tracking-widest cursor-pointer transition-colors" onClick={() => handleDeleteFood(f.id)}>
                                       Remove Entry
                                     </span>
                                     <Button className="bg-[#1a5c2e] hover:bg-[#154d25] text-white rounded-xl px-7 h-11 font-bold shadow-lg shadow-green-900/20 text-sm">
@@ -1512,7 +1507,7 @@ export default function AdminPage() {
                             { icon: Trash2, value: analytics.lifecycle?.expiredWaste ?? 0, label: "Unclaimed/Waste", bg: "border-dashed border-border" },
                           ].map(({ icon: Icon, value, label, bg, filled }) => (
                             <div key={label} className="flex flex-col items-center text-center">
-                              <div className={`size-[60px] rounded-full border-[3px] ${bg} flex items-center justify-center mb-4 shadow-sm z-10 ${filled ? "text-white" : "text-[#2A5C3B] dark:text-[#4ade80] bg-white dark:bg-zinc-950"}`}>
+                              <div className={`size-[60px] rounded-full border-[3px] ${bg} flex items-center justify-center mb-4 shadow-sm z-10 ${filled ? "text-white" : "text-[#2A5C3B] dark:text-[#4ade80] bg-white dark:bg-white/8"}`}>
                                 <Icon className="size-5" strokeWidth={2.5} />
                               </div>
                               <p className="text-2xl font-black mb-1 text-foreground">{value}</p>
@@ -1684,44 +1679,44 @@ export default function AdminPage() {
             ══════════════════════════════════════════════════════ */}
             {activeTab === "logs" && (() => {
               const LOG_TYPES = [
-                { key: "all",            label: "All Events",      color: "text-gray-500"    },
-                { key: "login",          label: "Login",           color: "text-blue-500"    },
-                { key: "register",       label: "Register",        color: "text-purple-500"  },
-                { key: "verify_fail",    label: "Verify Fail",     color: "text-red-400"     },
-                { key: "password_reset", label: "Password Reset",  color: "text-yellow-600"  },
-                { key: "profile_update", label: "Profile Update",  color: "text-sky-500"     },
-                { key: "reservation",    label: "Reservation",     color: "text-green-500"   },
-                { key: "pickup",         label: "Pickup",          color: "text-teal-500"    },
-                { key: "food_create",    label: "Food Post",       color: "text-orange-500"  },
-                { key: "food_delete",    label: "Food Remove",     color: "text-red-500"     },
-                { key: "user_delete",    label: "User Deleted",    color: "text-rose-600"    },
-                { key: "ai",             label: "AI Engine",       color: "text-violet-500"  },
-                { key: "data_fetch",     label: "Data Fetch",      color: "text-gray-400"    },
-                { key: "system",         label: "System",          color: "text-slate-500"   },
+                { key: "all", label: "All Events", color: "text-gray-500" },
+                { key: "login", label: "Login", color: "text-blue-500" },
+                { key: "register", label: "Register", color: "text-purple-500" },
+                { key: "verify_fail", label: "Verify Fail", color: "text-red-400" },
+                { key: "password_reset", label: "Password Reset", color: "text-yellow-600" },
+                { key: "profile_update", label: "Profile Update", color: "text-sky-500" },
+                { key: "reservation", label: "Reservation", color: "text-green-500" },
+                { key: "pickup", label: "Pickup", color: "text-teal-500" },
+                { key: "food_create", label: "Food Post", color: "text-orange-500" },
+                { key: "food_delete", label: "Food Remove", color: "text-red-500" },
+                { key: "user_delete", label: "User Deleted", color: "text-rose-600" },
+                { key: "ai", label: "AI Engine", color: "text-violet-500" },
+                { key: "data_fetch", label: "Data Fetch", color: "text-gray-400" },
+                { key: "system", label: "System", color: "text-slate-500" },
               ];
 
               const EVENT_STYLES: Record<string, { dot: string; badge: string; row: string }> = {
-                login:          { dot: "bg-blue-500",   badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",         row: "hover:bg-blue-50/40 dark:hover:bg-blue-900/10"    },
-                register:       { dot: "bg-purple-500", badge: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400",                     row: "hover:bg-purple-50/40 dark:hover:bg-purple-900/10" },
-                verify_fail:    { dot: "bg-red-400",    badge: "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400",                                   row: "hover:bg-red-50/30 dark:hover:bg-red-900/10"       },
-                password_reset: { dot: "bg-yellow-500", badge: "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400",                   row: "hover:bg-yellow-50/40 dark:hover:bg-yellow-900/10" },
-                profile_update: { dot: "bg-sky-500",    badge: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400",                                   row: "hover:bg-sky-50/40 dark:hover:bg-sky-900/10"       },
-                reservation:    { dot: "bg-green-500",  badge: "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800",   row: "hover:bg-green-50/40 dark:hover:bg-green-900/10"   },
-                pickup:         { dot: "bg-teal-500",   badge: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-400",                             row: "hover:bg-teal-50/40 dark:hover:bg-teal-900/10"     },
-                food_create:    { dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400",                   row: "hover:bg-orange-50/40 dark:hover:bg-orange-900/10" },
-                food_delete:    { dot: "bg-red-500",    badge: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800",             row: "hover:bg-red-50/40 dark:hover:bg-red-900/10"       },
-                user_delete:    { dot: "bg-rose-600",   badge: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400",                             row: "hover:bg-rose-50/40 dark:hover:bg-rose-900/10"     },
-                ai:             { dot: "bg-violet-500", badge: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400",                   row: "hover:bg-violet-50/40 dark:hover:bg-violet-900/10" },
-                data_fetch:     { dot: "bg-gray-400",   badge: "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400",                                 row: "hover:bg-gray-50/40 dark:hover:bg-gray-900/10"     },
-                system:         { dot: "bg-slate-500",  badge: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400",                           row: "hover:bg-slate-50/40 dark:hover:bg-slate-900/10"   },
-                error:          { dot: "bg-red-600",    badge: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300",                                 row: "hover:bg-red-50/50 dark:hover:bg-red-900/10"       },
+                login: { dot: "bg-blue-500", badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800", row: "hover:bg-blue-50/40 dark:hover:bg-blue-900/10" },
+                register: { dot: "bg-purple-500", badge: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400", row: "hover:bg-purple-50/40 dark:hover:bg-purple-900/10" },
+                verify_fail: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400", row: "hover:bg-red-50/30 dark:hover:bg-red-900/10" },
+                password_reset: { dot: "bg-yellow-500", badge: "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400", row: "hover:bg-yellow-50/40 dark:hover:bg-yellow-900/10" },
+                profile_update: { dot: "bg-sky-500", badge: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400", row: "hover:bg-sky-50/40 dark:hover:bg-sky-900/10" },
+                reservation: { dot: "bg-green-500", badge: "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800", row: "hover:bg-green-50/40 dark:hover:bg-green-900/10" },
+                pickup: { dot: "bg-teal-500", badge: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-400", row: "hover:bg-teal-50/40 dark:hover:bg-teal-900/10" },
+                food_create: { dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400", row: "hover:bg-orange-50/40 dark:hover:bg-orange-900/10" },
+                food_delete: { dot: "bg-red-500", badge: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800", row: "hover:bg-red-50/40 dark:hover:bg-red-900/10" },
+                user_delete: { dot: "bg-rose-600", badge: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400", row: "hover:bg-rose-50/40 dark:hover:bg-rose-900/10" },
+                ai: { dot: "bg-violet-500", badge: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400", row: "hover:bg-violet-50/40 dark:hover:bg-violet-900/10" },
+                data_fetch: { dot: "bg-gray-400", badge: "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400", row: "hover:bg-gray-50/40 dark:hover:bg-gray-900/10" },
+                system: { dot: "bg-slate-500", badge: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400", row: "hover:bg-slate-50/40 dark:hover:bg-slate-900/10" },
+                error: { dot: "bg-red-600", badge: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300", row: "hover:bg-red-50/50 dark:hover:bg-red-900/10" },
               };
 
               const LEVEL_ICONS: Record<string, React.ReactElement> = {
                 success: <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />,
-                info:    <AlertCircle  className="w-3.5 h-3.5 text-blue-400 shrink-0"  />,
+                info: <AlertCircle className="w-3.5 h-3.5 text-blue-400 shrink-0" />,
                 warning: <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />,
-                error:   <X className="w-3.5 h-3.5 text-red-500 shrink-0" />,
+                error: <X className="w-3.5 h-3.5 text-red-500 shrink-0" />,
               };
 
               const filteredLogs = logs
@@ -1759,11 +1754,10 @@ export default function AdminPage() {
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setAutoScroll(v => !v)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-all ${
-                          autoScroll
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-all ${autoScroll
                             ? "bg-green-500/10 border-green-400/40 text-green-600 dark:text-green-400"
                             : "bg-muted border-border text-muted-foreground"
-                        }`}
+                          }`}
                       >
                         <Radio className="w-3.5 h-3.5" />
                         {autoScroll ? "Auto-scroll ON" : "Auto-scroll OFF"}
@@ -1797,11 +1791,10 @@ export default function AdminPage() {
                         <button
                           key={t.key}
                           onClick={() => setLogFilter(t.key)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                            logFilter === t.key
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${logFilter === t.key
                               ? "bg-[#1a5c2e] text-white border-[#1a5c2e] shadow-sm"
                               : "border-border/50 text-muted-foreground hover:border-foreground/30 hover:text-foreground bg-card/50"
-                          }`}
+                            }`}
                         >
                           {t.label}
                         </button>
@@ -1817,7 +1810,7 @@ export default function AdminPage() {
                         <div
                           key={t.key}
                           onClick={() => setLogFilter(t.key)}
-                          className="bg-card/60 border border-border/40 rounded-2xl p-3 text-center cursor-pointer hover:border-border transition-all"
+                          className="glass-panel rounded-2xl p-3 text-center cursor-pointer transition-all"
                         >
                           <p className="text-xl font-black text-foreground">{count}</p>
                           <p className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${t.color}`}>{t.label}</p>
@@ -1920,10 +1913,10 @@ export default function AdminPage() {
         {/* MOBILE BOTTOM NAV */}
         <nav className="fixed bottom-0 w-full bg-card/90 backdrop-blur-md border-t border-border flex lg:hidden items-center justify-around p-2 z-50 pb-safe">
           {([
-            { id: "overview",  icon: LayoutDashboard },
-            { id: "users",     icon: Users           },
-            { id: "food",      icon: Utensils        },
-            { id: "analytics", icon: TrendingUp      },
+            { id: "overview", icon: LayoutDashboard },
+            { id: "users", icon: Users },
+            { id: "food", icon: Utensils },
+            { id: "analytics", icon: TrendingUp },
           ] as { id: ActiveTab; icon: any }[]).map(({ id, icon: Icon }) => (
             <Button
               key={id}

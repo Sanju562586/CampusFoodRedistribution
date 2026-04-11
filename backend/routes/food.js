@@ -12,6 +12,7 @@ const redis = Redis.fromEnv();
 const router = express.Router();
 const { Client, Receiver } = require("@upstash/qstash");
 const activityLog = require("../lib/activityLog");
+const userBehavior = require("../lib/userBehavior");
 
 // ─────────────────────────────────────────────
 // In-flight promise coalescing for /available
@@ -176,6 +177,12 @@ async function directFoodCreate(payload, pusherClient, res) {
 
     if (pusherClient) pusherClient.trigger("food-channel", "food_added", foodJson);
 
+    // 🔔 Smart Notifications — fire targeted Pusher events to interested students
+    // We check the behavior preference index (O(1) Redis set lookups) to find
+    // users who have previously picked up food from the same location or same diet.
+    // Each matching user gets a private notification on their own channel.
+    _sendSmartNotifications(pusherClient, foodJson).catch(() => {});
+
     activityLog.push({
       type: "food_create",
       level: "success",
@@ -194,6 +201,59 @@ async function directFoodCreate(payload, pusherClient, res) {
     console.error("directFoodCreate error:", err);
     if (res) return res.status(500).json({ message: "Failed to create food" });
   }
+}
+
+// ─────────────────────────────────────────────
+// Smart Notification Engine
+// Checks behavior preference indexes and fires
+// targeted Pusher events to relevant students
+// ─────────────────────────────────────────────
+async function _sendSmartNotifications(pusherClient, food) {
+  if (!pusherClient) return;
+
+  // Infer diet from allergens (simple heuristic; extend as needed)
+  const allergens = Array.isArray(food.allergens) ? food.allergens : [];
+  const hasNonVegAllergens = allergens.some(a =>
+    ["meat", "chicken", "fish", "egg", "pork", "beef"].includes(a.toLowerCase())
+  );
+  const diet = hasNonVegAllergens ? "Non-Veg" : "Any";
+
+  const interestedUserIds = await userBehavior.getInterestedUsers(food, diet);
+
+  if (!interestedUserIds || interestedUserIds.length === 0) return;
+
+  const notification = {
+    id:        `notif_${Date.now()}`,
+    type:      "food_match",
+    title:     "🍱 New Food Match!",
+    message:   `${food.name} is now available at ${food.dining_hall || food.location}`,
+    foodId:    food.id,
+    foodName:  food.name,
+    hall:      food.dining_hall || food.location,
+    quantity:  food.quantity,
+    expiresAt: food.expiry_time,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Batch Pusher triggers — max 10 per batch to avoid API limits
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < interestedUserIds.length; i += BATCH_SIZE) {
+    const batch = interestedUserIds.slice(i, i + BATCH_SIZE);
+    await Promise.allSettled(
+      batch.map(uid =>
+        pusherClient.trigger(`user-${uid}`, "food_notification", notification)
+      )
+    );
+  }
+
+  activityLog.push({
+    type: "ai",
+    level: "info",
+    message: `Smart notifications sent for "${food.name}"`,
+    actor: "AI Notification Engine",
+    role: "system",
+    detail: `${interestedUserIds.length} user(s) notified · Hall: ${food.dining_hall || food.location}`,
+  });
 }
 
 // ─────────────────────────────────────────────

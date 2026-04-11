@@ -5,6 +5,7 @@ const { randomUUID } = require("crypto");
 const QRCode = require("qrcode");
 const { Client } = require("@upstash/qstash");
 const activityLog = require("../lib/activityLog");
+const userBehavior = require("../lib/userBehavior");
 
 const router = express.Router();
 
@@ -105,6 +106,10 @@ async function directReservationCreate({ foodId, quantity, userId, code }, pushe
           role: "student",
           detail: `Code: ${code} · Qty: ${quantity}`,
         });
+
+        // 🧠 Feed the behavioral brain — record this interaction for smarter future recs
+        const user = await User.findByPk(userId, { attributes: ["dietary_preferences"] });
+        userBehavior.recordInteraction(userId, food, user?.dietary_preferences || "Any").catch(() => {});
 
         const qrCodeUrl = await QRCode.toDataURL(code);
         if (res) {
@@ -217,6 +222,13 @@ router.post(
               role: "student",
               detail: `Code: ${reservation_code}`,
             });
+
+            // 🧠 Reinforce the behavioral signal on actual pickup (stronger signal than reserve)
+            userBehavior.recordInteraction(
+              reservation.userId,
+              reservation.Food,
+              reservation.User?.dietary_preferences || "Any"
+            ).catch(() => {});
 
             res.json({
                 message: "Pickup confirmed",

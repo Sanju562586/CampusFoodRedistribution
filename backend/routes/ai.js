@@ -2,6 +2,7 @@ const express = require("express");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 const { Food, sequelize, Reservation } = require("../models");
 const { Op } = require("sequelize");
+const activityLog = require("../lib/activityLog");
 
 const router = express.Router();
 
@@ -38,6 +39,7 @@ router.get(
             });
 
             if (availableFood.length === 0) {
+                activityLog.push({ type: "ai", level: "info", message: "AI recommend: no food available", actor: `User #${req.user.id}`, role: "student", detail: "Empty inventory" });
                 return res.json({ type: "info", message: "No food available right now.", data: [] });
             }
 
@@ -49,6 +51,7 @@ router.get(
             });
 
             if (safeFood.length === 0) {
+                activityLog.push({ type: "ai", level: "warning", message: "AI recommend: all items blocked by allergen filter", actor: `User #${req.user.id}`, role: "student", detail: `Allergens: ${JSON.stringify(preferences.allergens)}` });
                 return res.json({ type: "alert", message: "No food found matching your allergen restrictions.", data: [] });
             }
 
@@ -56,6 +59,7 @@ router.get(
             // If user has no specific preferences, use expiry heuristic
             if (!preferences.diet || preferences.diet === "Any") {
                 const expiringSoon = safeFood.sort((a, b) => new Date(a.expiry_time) - new Date(b.expiry_time)).slice(0, 3);
+                activityLog.push({ type: "ai", level: "success", message: "AI recommend: heuristic expiry-based picks returned", actor: `User #${req.user.id}`, role: "student", detail: `${expiringSoon.length} items (no diet pref set)` });
                 return res.json({
                     type: "general",
                     message: "Fresh food available now!",
@@ -91,6 +95,8 @@ router.get(
                 // Fallback if AI returns empty or invalid IDs
                 const finalData = recommended.length > 0 ? recommended : safeFood.slice(0, 3);
 
+                activityLog.push({ type: "ai", level: "success", message: "AI personalized food recommendation served", actor: `User #${req.user.id}`, role: "student", detail: `${finalData.length} items · diet: ${preferences.diet}` });
+
                 res.json({
                     type: "personalized",
                     message: `Recommended based on your ${preferences.diet} preference`,
@@ -99,10 +105,9 @@ router.get(
 
             } catch (aiError) {
                 console.error("AI Ranking failed, falling back to simple filter", aiError);
+                activityLog.push({ type: "ai", level: "warning", message: "Gemini AI ranking failed — fallback activated", actor: `User #${req.user.id}`, role: "student", detail: aiError.message });
                 // Fallback: Simple filter by diet
                 const dietMatches = safeFood.filter(f => {
-                    // simplistic check, assuming name or description might imply veg/non-veg if not strictly tagged
-                    // For now, just return safe food sorted by expiry
                     return true;
                 }).sort((a, b) => new Date(a.expiry_time) - new Date(b.expiry_time)).slice(0, 3);
 
@@ -222,8 +227,10 @@ router.get(
                     expiredWaste
                 }
             });
+            activityLog.push({ type: "ai", level: "info", message: "Waste prediction fetched by admin", actor: `Admin #${req.user.id}`, role: "admin", detail: `${atRiskItems} at-risk items · ${totalQuantity} units · ${suggestionType || "NONE"} suggested` });
         } catch (err) {
             console.error(err);
+            activityLog.push({ type: "ai", level: "error", message: "Waste prediction engine error", actor: `Admin #${req.user.id}`, role: "admin", detail: err.message });
             res.status(500).json({ message: "Analytics Offline" });
         }
     }
@@ -276,8 +283,10 @@ router.post("/apply-suggestion", authenticate, authorize("admin"), async (req, r
         }
 
         res.json({ message, affectedCount });
+        activityLog.push({ type: "ai", level: affectedCount > 0 ? "success" : "warning", message: `AI suggestion applied: ${type}`, actor: `Admin #${req.user.id}`, role: "admin", detail: `${affectedCount} item(s) affected · ${message}` });
     } catch (err) {
         console.error(err);
+        activityLog.push({ type: "ai", level: "error", message: "Apply-suggestion failed", actor: `Admin #${req.user.id}`, role: "admin", detail: err.message });
         res.status(500).json({ message: "Failed to apply suggestion" });
     }
 });

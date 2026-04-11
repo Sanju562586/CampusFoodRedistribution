@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, User, Store, ShieldCheck, Heart, TrendingUp } from "lucide-react";
+import { ArrowRight, User, Store, ShieldCheck, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import FoodWastageSection from "@/components/FoodWastageSection";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function Home() {
   const roles = [
@@ -63,10 +64,12 @@ export default function Home() {
 
         {/* Navbar */}
         <nav className="flex justify-between items-center mb-16">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-tr from-purple-500 to-orange-500 rounded-lg" />
-            <span className="text-xl font-bold tracking-tight">CampusFood</span>
-          </div>
+          <BrandLogo
+            size={38}
+            subtitle="Food Rescue Network"
+            tone="light"
+            wordmarkSize="md"
+          />
           <div className="flex gap-4">
             <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10">About</Button>
             <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10">Contact</Button>
@@ -85,7 +88,7 @@ export default function Home() {
                 Connecting Surplus <br className="hidden md:block" /> with Students.
               </h1>
               <p className="text-lg text-white/50 max-w-md">
-                Join our mission to reduce food waste. Whether you're hungry or helping, there's a place for you.
+                Join our mission to reduce food waste. Whether you&apos;re hungry or helping, there&apos;s a place for you.
               </p>
             </div>
 

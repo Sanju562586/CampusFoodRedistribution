@@ -1,5 +1,6 @@
 "use client";
 
+import BrandLogo from "@/components/BrandLogo";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { HomeIcon, TicketIcon, TrophyIcon, LogOutIcon } from "lucide-react";
@@ -11,9 +12,13 @@ export default function Sidebar() {
 
   useEffect(() => {
     const user = getAuth();
-    if (user && user.points) {
-      setPoints(user.points);
-    }
+    if (!user?.points) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setPoints(user.points ?? 0);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   return (
@@ -22,9 +27,7 @@ export default function Sidebar() {
       animate={{ x: 0, opacity: 1 }}
       className="w-64 bg-card border-r border-border p-6 hidden md:block"
     >
-      <h2 className="text-xl font-bold mb-8">
-        Campus<span className="text-green-500">Food</span>
-      </h2>
+      <BrandLogo className="mb-8" size={36} subtitle="Food Rescue Network" wordmarkSize="sm" />
 
       <div className="mb-6 p-4 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">My Impact</p>

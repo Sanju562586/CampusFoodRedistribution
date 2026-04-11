@@ -1,5 +1,6 @@
 "use client";
 
+import BrandLogo from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 import { motion } from "framer-motion";
@@ -12,9 +13,7 @@ export default function Navbar() {
       animate={{ y: 0, opacity: 1 }}
       className="flex justify-between items-center px-10 py-6 border-b border-border"
     >
-      <h1 className="text-xl font-bold tracking-tight">
-        Campus<span className="text-green-500">Food</span>
-      </h1>
+      <BrandLogo size={36} subtitle="Food Rescue Network" wordmarkSize="md" />
 
       <div className="flex gap-3 items-center">
         <ModeToggle />

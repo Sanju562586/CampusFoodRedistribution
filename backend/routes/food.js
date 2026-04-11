@@ -11,6 +11,7 @@ const redis = Redis.fromEnv();
 
 const router = express.Router();
 const { Client, Receiver } = require("@upstash/qstash");
+const activityLog = require("../lib/activityLog");
 
 // ─────────────────────────────────────────────
 // In-flight promise coalescing for /available
@@ -91,8 +92,10 @@ router.post(
             folder: 'campus_food'
           });
           finalImageUrl = uploadResponse.secure_url;
+          activityLog.push({ type: "food_create", level: "info", message: "Food image uploaded to Cloudinary", actor: `Donor #${req.user.id}`, role: "donor", detail: finalImageUrl });
         } catch (cloudinaryErr) {
           console.error("Cloudinary Upload Error:", cloudinaryErr);
+          activityLog.push({ type: "food_create", level: "error", message: "Cloudinary image upload failed", actor: `Donor #${req.user.id}`, role: "donor", detail: cloudinaryErr.message });
           return res.status(500).json({ message: "Image upload failed. Check Cloudinary configuration." });
         }
       }
@@ -135,10 +138,13 @@ router.post(
         const qstashClient = new Client({ token: process.env.QSTASH_TOKEN });
         await qstashClient.publishJSON({ url: targetUrl, body: payload });
 
+        activityLog.push({ type: "food_create", level: "info", message: `Food creation queued via QStash: ${name}`, actor: `Donor #${req.user.id}`, role: "donor", detail: `${quantity} units @ ${dining_hall || location}` });
+
         // Return 202 instantly — user doesn't wait for DB
         res.status(202).json({ message: "Food creation queued successfully" });
       } catch (qstashErr) {
         console.error("QStash Publish Error:", qstashErr);
+        activityLog.push({ type: "food_create", level: "error", message: "QStash publish failed for food creation", actor: `Donor #${req.user.id}`, role: "donor", detail: qstashErr.message });
         res.status(500).json({ message: "Failed to queue food creation" });
       }
     } catch (err) {
@@ -169,6 +175,15 @@ async function directFoodCreate(payload, pusherClient, res) {
     }
 
     if (pusherClient) pusherClient.trigger("food-channel", "food_added", foodJson);
+
+    activityLog.push({
+      type: "food_create",
+      level: "success",
+      message: `New food posted: ${foodJson.name}`,
+      actor: `Donor #${foodJson.donorId || "unknown"}`,
+      role: "donor",
+      detail: `${foodJson.quantity} units @ ${foodJson.dining_hall || foodJson.location}`,
+    });
 
     // ✅ Targeted invalidation only — DO NOT flushall()
     // flushall() would destroy session cache, leaderboard cache, etc.
@@ -231,6 +246,8 @@ router.post("/worker-create", async (req, res) => {
 
     // Trigger real-time update for connected clients
     if (req.pusher) req.pusher.trigger("food-channel", "food_added", foodJson);
+
+    activityLog.push({ type: "food_create", level: "success", message: `QStash worker created food: ${foodJson.name}`, actor: `Donor #${foodJson.donorId || "unknown"}`, role: "donor", detail: `${foodJson.quantity} units @ ${foodJson.dining_hall || foodJson.location}` });
 
     // ✅ Targeted cache invalidation — only food-related keys
     await redis.del("availableFood", "stats");
@@ -440,9 +457,19 @@ router.delete(
   async (req, res) => {
     try {
       const { id } = req.params;
+      const food = await Food.findByPk(id);
       const deleted = await Food.destroy({ where: { id } });
       if (!deleted)
         return res.status(404).json({ message: "Food item not found" });
+
+      activityLog.push({
+        type: "food_delete",
+        level: "warning",
+        message: `Food removed: ${food?.name || `ID #${id}`}`,
+        actor: `Admin #${req.user.id}`,
+        role: "admin",
+        detail: `Food ID: ${id}`,
+      });
 
       // Invalidate food cache after deletion
       await redis.del("availableFood", "stats");

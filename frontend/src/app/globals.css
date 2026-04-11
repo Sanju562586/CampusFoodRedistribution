@@ -44,6 +44,60 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  --color-on-primary: #d2ffc4;
+  --color-inverse-on-surface: #9b9d9c;
+  --color-on-secondary-fixed: #37432e;
+  --color-surface-variant: #d9dedb;
+  --color-on-surface-variant: #595c5b;
+  --color-primary-container: #b9eeab;
+  --color-on-secondary-fixed-variant: #535f48;
+  --color-surface-dim: #d1d5d3;
+  --color-on-tertiary-fixed-variant: #005c63;
+  --color-inverse-primary: #b9eeab;
+  --color-outline-variant: #abaeac;
+  --color-error: #b02500;
+  --color-primary-fixed: #b9eeab;
+  --color-on-primary-fixed-variant: #376430;
+  --color-background-custom: #f5f7f5;
+  --color-surface-container: #e6e9e7;
+  --color-on-primary-container: #2d5a27;
+  --color-on-error: #ffefec;
+  --color-tertiary-container: #0aeafb;
+  --color-tertiary-dim: #00595f;
+  --color-surface-container-high: #e0e3e1;
+  --color-primary-custom: #386631;
+  --color-inverse-surface: #0b0f0e;
+  --color-secondary-dim: #47533d;
+  --color-secondary-custom: #535f48;
+  --color-surface-container-low: #eff1ef;
+  --color-on-tertiary-fixed: #003d42;
+  --color-primary-fixed-dim: #abdf9e;
+  --color-tertiary-fixed-dim: #00dbea;
+  --color-outline: #747776;
+  --color-on-tertiary-container: #005258;
+  --color-surface-bright: #f5f7f5;
+  --color-secondary-fixed-dim: #ccd9bc;
+  --color-surface: #f5f7f5;
+  --color-tertiary-custom: #00666d;
+  --color-tertiary-fixed: #0aeafb;
+  --color-surface-tint: #386631;
+  --color-secondary-fixed: #dae7ca;
+  --color-on-surface: #2c2f2e;
+  --color-on-primary-fixed: #1a4716;
+  --color-error-dim: #b92902;
+  --color-on-background: #2c2f2e;
+  --color-primary-dim: #2d5927;
+  --color-on-tertiary: #d0faff;
+  --color-error-container: #f95630;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-highest: #d9dedb;
+  --color-secondary-container: #dae7ca;
+  --color-on-secondary: #eaf7d9;
+  --color-on-secondary-container: #4a553f;
+  --color-on-error-container: #520c00;
+  --font-headline: "Manrope", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-label: "Inter", sans-serif;
 }
 
 :root {
@@ -131,5 +185,15 @@
   .scrollbar-hide {
       -ms-overflow-style: none;  /* IE and Edge */
       scrollbar-width: none;  /* Firefox */
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+  
+  .grain-bg {
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuCVe28mEtkLQVEPe-V5AR1xt4DyPX2ddiIn-noEPJ0BgMRbFaupADDnV5X1kr-zSEj3e_dBLTCEfozisjAPiRPo9I0WYP7_oEU8APVCEdkxHfQMuVfo4Qm8Y0nxmCcz9gdSZeS40Ey40KlVIKuR8cMRAtclFR5l4QjF7uP_nLVytK-bO1Znt34ak6-hj7C43QGJxdGgkw_avzD3PImos87nU73JrTVYpD7XYfK_YoWDJnTiTIK1mvLxd5-_F6sMBM-R0KDk-VsdQw);
   }
 }

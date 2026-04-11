@@ -1,6 +1,8 @@
-import Sidebar from "@/components/Sidebar";
-import DashboardHeader from "@/components/DashboardHeader";
+"use client";
+
 import { ThemeProvider } from "@/components/theme-provider";
+import StudentSidebar from "@/components/StudentSidebar";
+import StudentBottomNav from "@/components/StudentBottomNav";
 
 export default function DashboardLayout({
   children,
@@ -8,21 +10,25 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-        storageKey="theme-student"
-      >
-        <Sidebar />
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      disableTransitionOnChange
+      storageKey="theme-student"
+    >
+      <div className="min-h-screen bg-[#eef8ee]">
+        {/* Desktop sidebar — fixed, 224px wide */}
+        <StudentSidebar />
 
-        <div className="flex-1 flex flex-col">
-          <DashboardHeader />
-          <main className="flex-1 p-6">{children}</main>
+        {/* Main content — offset by sidebar width on lg+ */}
+        <div className="lg:pl-56 min-h-screen pb-20 lg:pb-0">
+          {children}
         </div>
-      </ThemeProvider>
-    </div>
+
+        {/* Mobile bottom nav — hidden on desktop */}
+        <StudentBottomNav />
+      </div>
+    </ThemeProvider>
   );
 }

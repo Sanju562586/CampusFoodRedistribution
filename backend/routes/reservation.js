@@ -4,6 +4,7 @@ const { Reservation, Food, User, sequelize } = require("../models");
 const { randomUUID } = require("crypto");
 const QRCode = require("qrcode");
 const { Client } = require("@upstash/qstash");
+const activityLog = require("../lib/activityLog");
 
 const router = express.Router();
 
@@ -20,6 +21,7 @@ router.post(
         const userId = req.user.id;
 
         if (!foodId || !quantity || quantity <= 0) {
+            activityLog.push({ type: "reservation", level: "error", message: "Reservation rejected — invalid parameters", actor: `User #${req.user.id}`, role: "student", detail: `foodId=${foodId} qty=${quantity}` });
             return res.status(400).json({ message: "Invalid request" });
         }
 
@@ -44,6 +46,7 @@ router.post(
 
             // Return mock reservation object instantly (< 50ms)
             const qrCodeUrl = await QRCode.toDataURL(code);
+            activityLog.push({ type: "reservation", level: "info", message: `Reservation queued via QStash`, actor: `User #${userId}`, role: "student", detail: `Food #${foodId} · Qty: ${quantity} · Code: ${code}` });
             res.status(202).json({
                 message: "Reservation queued successfully",
                 reservation: {
@@ -57,6 +60,7 @@ router.post(
             });
         } catch (err) {
             console.error("QStash Publish Error:", err);
+            activityLog.push({ type: "reservation", level: "error", message: "QStash publish failed for reservation", actor: `User #${userId}`, role: "student", detail: err.message });
             res.status(500).json({ message: "Failed to queue reservation" });
         }
     }
@@ -69,8 +73,16 @@ async function directReservationCreate({ foodId, quantity, userId, code }, pushe
     const t = await sequelize.transaction();
     try {
         const food = await Food.findByPk(foodId, { transaction: t, lock: t.LOCK.UPDATE });
-        if (!food) { await t.rollback(); return res ? res.status(404).json({ message: "Food not found" }) : null; }
-        if (food.quantity < quantity) { await t.rollback(); return res ? res.status(400).json({ message: "Not enough quantity available" }) : null; }
+        if (!food) {
+            await t.rollback();
+            activityLog.push({ type: "reservation", level: "error", message: "Reservation failed — food not found", actor: `User #${userId}`, role: "student", detail: `Food #${foodId} does not exist` });
+            return res ? res.status(404).json({ message: "Food not found" }) : null;
+        }
+        if (food.quantity < quantity) {
+            await t.rollback();
+            activityLog.push({ type: "reservation", level: "warning", message: `Reservation failed — insufficient quantity`, actor: `User #${userId}`, role: "student", detail: `Requested: ${quantity} · Available: ${food.quantity} of "${food.name}"` });
+            return res ? res.status(400).json({ message: "Not enough quantity available" }) : null;
+        }
 
         food.quantity -= quantity;
         await food.save({ transaction: t });
@@ -84,6 +96,15 @@ async function directReservationCreate({ foodId, quantity, userId, code }, pushe
         await t.commit();
 
         if (pusherClient) pusherClient.trigger("food-channel", "food_update", { foodId, quantity: food.quantity });
+
+        activityLog.push({
+          type: "reservation",
+          level: "success",
+          message: `Food reserved: ${food.name}`,
+          actor: `User #${userId}`,
+          role: "student",
+          detail: `Code: ${code} · Qty: ${quantity}`,
+        });
 
         const qrCodeUrl = await QRCode.toDataURL(code);
         if (res) {
@@ -105,6 +126,7 @@ router.post(
     async (req, res) => {
         // Note: Verify the QStash signature here in production
         console.log("📥 QStash Worker received payload for Reservation");
+        activityLog.push({ type: "system", level: "info", message: "QStash worker processing reservation", actor: "QStash Worker", role: "system", detail: `foodId=${req.body?.foodId} userId=${req.body?.userId}` });
         
         const payload = req.body;
         // Don't pass res, handled asynchronously
@@ -135,6 +157,8 @@ router.get(
                 const qrCodeUrl = await QRCode.toDataURL(r.reservation_code);
                 return { ...r.toJSON(), qrCodeUrl };
             }));
+
+            activityLog.push({ type: "data_fetch", level: "info", message: `Student fetched their reservations`, actor: `User #${req.user.id}`, role: "student", detail: `${reservations.length} reservation(s) returned` });
 
             res.json(data);
         } catch (err) {
@@ -168,19 +192,31 @@ router.post(
             });
 
             if (!reservation) {
+                activityLog.push({ type: "pickup", level: "warning", message: "Pickup attempted — code not found", actor: `User #${req.user.id}`, role: req.user.role, detail: `Code: ${reservation_code}` });
                 return res.status(404).json({ message: "Reservation not found" });
             }
 
             if (reservation.status === "picked_up") {
+                activityLog.push({ type: "pickup", level: "warning", message: "Pickup attempted — already picked up", actor: reservation.User?.email || `User #${reservation.userId}`, role: "student", detail: `Code: ${reservation_code}` });
                 return res.status(400).json({ message: "Already picked up" });
             }
 
             if (reservation.status === "cancelled") {
+                activityLog.push({ type: "pickup", level: "error", message: "Pickup attempted — reservation is cancelled", actor: reservation.User?.email || `User #${reservation.userId}`, role: "student", detail: `Code: ${reservation_code}` });
                 return res.status(400).json({ message: "Reservation cancelled" });
             }
 
             reservation.status = "picked_up";
             await reservation.save();
+
+            activityLog.push({
+              type: "pickup",
+              level: "success",
+              message: `Pickup confirmed: ${reservation.Food?.name || "food item"}`,
+              actor: reservation.User?.email || `User #${reservation.userId}`,
+              role: "student",
+              detail: `Code: ${reservation_code}`,
+            });
 
             res.json({
                 message: "Pickup confirmed",

@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { Redis } = require("@upstash/redis");
 const { User, PendingUser } = require("../models");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
+const activityLog = require("../lib/activityLog");
 
 const router = express.Router();
 
@@ -85,6 +86,8 @@ router.put("/profile", authenticate, async (req, res) => {
     const userJson = user.toJSON();
     delete userJson.password;
 
+    activityLog.push({ type: "profile_update", level: "info", message: "User updated their profile", actor: user.email, role: user.role, detail: `Diet: ${user.dietary_preferences} · Allergens: ${JSON.stringify(user.allergens)}` });
+
     res.json(userJson);
   } catch (err) {
     console.error("PUT /profile error:", err);
@@ -108,11 +111,13 @@ router.post("/login", async (req, res) => {
     });
 
     if (!user || (role && user.role !== role)) {
+      activityLog.push({ type: "login", level: "warning", message: "Login attempt — user not found", actor: email, role: role || "unknown", detail: "No matching account" });
       return res.status(404).json({ message: "User not found" });
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      activityLog.push({ type: "login", level: "error", message: "Failed login attempt", actor: email, role: role || "unknown", detail: "Invalid credentials" });
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
@@ -131,6 +136,8 @@ router.post("/login", async (req, res) => {
       JSON.stringify({ id: user.id, role: user.role }),
       { ex: 3600 } // 1 hour session cache
     );
+
+    activityLog.push({ type: "login", level: "success", message: `User logged in`, actor: user.email, role: user.role, detail: `ID: ${user.id}` });
 
     res.json({
       token,
@@ -160,6 +167,7 @@ router.post("/register", async (req, res) => {
 
     const existing = await User.findOne({ where: { email, role: userRole } });
     if (existing) {
+      activityLog.push({ type: "register", level: "warning", message: "Registration rejected — account exists", actor: email, role: userRole, detail: "Duplicate account attempt" });
       return res.status(400).json({ message: "User already exists with this role" });
     }
 
@@ -214,6 +222,7 @@ router.post("/register", async (req, res) => {
     res.status(201).json({
       message: "Registration successful. Please check your email for OTP.",
     });
+    activityLog.push({ type: "register", level: "info", message: `New registration initiated`, actor: email, role: userRole, detail: `OTP sent to ${email}` });
   } catch (err) {
     console.error("POST /register error:", err);
     res.status(500).json({ message: "Server error" });
@@ -239,10 +248,12 @@ router.post("/verify-email", async (req, res) => {
     }
 
     if (pendingUser.verification_token !== otp) {
+      activityLog.push({ type: "verify_fail", level: "error", message: "Email verification failed — invalid OTP", actor: email, role: pendingUser?.role || "unknown", detail: "Wrong OTP submitted" });
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
     if (pendingUser.verification_expires < Date.now()) {
+      activityLog.push({ type: "verify_fail", level: "error", message: "Email verification failed — OTP expired", actor: email, role: pendingUser?.role || "unknown", detail: "OTP window elapsed" });
       return res.status(400).json({ message: "OTP expired" });
     }
 
@@ -258,6 +269,8 @@ router.post("/verify-email", async (req, res) => {
     });
 
     await pendingUser.destroy();
+
+    activityLog.push({ type: "register", level: "success", message: `Email verified — account activated`, actor: email, role: pendingUser.role, detail: `${pendingUser.name} joined as ${pendingUser.role}` });
 
     res.json({ message: "Email verified successfully. You can now login." });
   } catch (err) {
@@ -325,6 +338,7 @@ router.get("/users", authenticate, authorize("admin"), async (req, res) => {
 router.delete("/users/:id", authenticate, authorize("admin"), async (req, res) => {
   try {
     const { id } = req.params;
+    const targetUser = await User.findByPk(id);
     const deleted = await User.destroy({ where: { id } });
 
     if (!deleted) {
@@ -333,6 +347,8 @@ router.delete("/users/:id", authenticate, authorize("admin"), async (req, res) =
 
     // ✅ Revoke the session immediately — token is rejected on next request
     await redis.del(`session:${id}`);
+
+    activityLog.push({ type: "user_delete", level: "warning", message: `Admin deleted user account`, actor: req.user.email || `Admin #${req.user.id}`, role: "admin", detail: `Removed: ${targetUser?.email || `ID #${id}`} (${targetUser?.role || "?"})` });
 
     res.json({ message: "User deleted successfully" });
   } catch (err) {
@@ -349,8 +365,10 @@ router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
   try {
     const users = await User.findAll({ where: { email } });
-    if (!users || users.length === 0)
+    if (!users || users.length === 0) {
+      activityLog.push({ type: "password_reset", level: "warning", message: "Forgot-password — email not found", actor: email, role: "unknown", detail: "No account with that email" });
       return res.status(404).json({ message: "User not found" });
+    }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = Date.now() + 600000; // 10 minutes
@@ -360,6 +378,8 @@ router.post("/forgot-password", async (req, res) => {
       user.resetPasswordExpires = expires;
       await user.save();
     }
+
+    activityLog.push({ type: "password_reset", level: "info", message: "Password reset OTP requested", actor: email, role: "unknown", detail: `OTP dispatched to ${email}` });
 
     console.log(`[OTP] Password reset OTP for ${email}: ${otp}`);
 
@@ -416,12 +436,17 @@ router.post("/verify-otp", async (req, res) => {
       where: { email, resetPasswordToken: otp },
     });
 
-    if (!user) return res.status(400).json({ message: "Invalid OTP" });
+    if (!user) {
+      activityLog.push({ type: "verify_fail", level: "error", message: "Password reset OTP invalid", actor: email, role: "unknown", detail: "OTP mismatch" });
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
 
     if (user.resetPasswordExpires < Date.now()) {
+      activityLog.push({ type: "verify_fail", level: "error", message: "Password reset OTP expired", actor: email, role: "unknown", detail: "OTP window elapsed" });
       return res.status(400).json({ message: "OTP expired" });
     }
 
+    activityLog.push({ type: "password_reset", level: "info", message: "Password reset OTP verified", actor: email, role: user.role, detail: "OTP accepted — awaiting new password" });
     res.json({ message: "OTP verified" });
   } catch (err) {
     console.error("POST /verify-otp error:", err);
@@ -459,11 +484,23 @@ router.post("/reset-password", async (req, res) => {
       await redis.del(`session:${user.id}`);
     }
 
+    activityLog.push({ type: "password_reset", level: "success", message: "Password successfully reset", actor: email, role: users[0]?.role || "unknown", detail: `Session invalidated for ${users.length} account(s)` });
+
     res.json({ message: "Password reset successful" });
   } catch (err) {
     console.error("POST /reset-password error:", err);
     res.status(500).json({ message: "Error resetting password" });
   }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/auth/admin/logs
+// Admin only — returns recent platform activity log
+// ─────────────────────────────────────────────
+router.get("/admin/logs", authenticate, authorize("admin"), (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+  const type = req.query.type || undefined;
+  res.json(activityLog.recent({ limit, type }));
 });
 
 module.exports = router;

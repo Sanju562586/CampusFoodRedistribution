@@ -1,0 +1,925 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import api from "@/lib/axios";
+import { clearAuth, getAuth } from "@/lib/auth";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  LayoutDashboard,
+  Users,
+  Utensils,
+  ScanLine,
+  LogOut,
+  TrendingUp,
+  AlertTriangle,
+  Search,
+  Trash2,
+  Bell,
+  Settings,
+  HelpCircle,
+  Truck,
+  Zap,
+  BarChart3,
+  Activity,
+  ChevronRight,
+  Radio,
+  HandCoins,
+  Download,
+  UserPlus,
+  ShieldCheck,
+  GraduationCap,
+  ArrowUpRight,
+  Sparkles,
+  MoonStar,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import Pusher from "pusher-js";
+
+export default function AdminPage() {
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "food" | "analytics">("overview");
+  const [foodCategoryView, setFoodCategoryView] = useState<"categories" | "donors" | "students">("categories");
+  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
+  const [stats, setStats] = useState({ users: 0, activeFoodCount: 0, activeDonors: 0, activeStudents: 0 });
+  const [users, setUsers] = useState<any[]>([]);
+  const [food, setFood] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [applying, setApplying] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "donor" | "student">("all");
+
+  // Fetch Data on Load & listen via Pusher
+  useEffect(() => {
+    fetchDashboardData();
+
+    // Pusher real-time connection
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+    });
+
+    const channel = pusher.subscribe("food-channel");
+
+    channel.bind("food_added", (newFood: any) => {
+      setFood((prevFood) => [newFood, ...prevFood]);
+      setStats((prev) => ({ ...prev, activeFoodCount: prev.activeFoodCount + 1 }));
+    });
+
+    channel.bind("food_update", (data: { foodId: number, quantity: number }) => {
+      setFood((prevFood) =>
+        prevFood.map((f) =>
+          f.id === data.foodId ? { ...f, quantity: data.quantity } : f
+        )
+      );
+    });
+
+    return () => {
+      channel.unbind_all();
+      channel.unsubscribe();
+    };
+  }, []);
+
+  const fetchDashboardData = async () => {
+    // Only show loading on initial load or if data is empty
+    if (!users.length && !food.length) setLoading(true);
+
+    try {
+      const [usersRes, foodRes, statsRes, aiRes] = await Promise.all([
+        api.get("/auth/users").catch(() => ({ data: [] })),
+        api.get("/food/all").catch(() => ({ data: [] })),
+        api.get("/food/stats").catch(() => ({ data: { activeCount: 0 } })),
+        api.get("/ai/waste-prediction").catch(() => ({ data: null }))
+      ]);
+
+      setUsers(usersRes.data);
+      setFood(foodRes.data);
+      setAnalytics(aiRes.data);
+
+      setStats({
+        users: usersRes.data.length,
+        activeFoodCount: statsRes.data.activeCount,
+        activeDonors: usersRes.data.filter((u: any) => u.role === 'donor').length,
+        activeStudents: usersRes.data.filter((u: any) => u.role === 'student').length
+      });
+
+    } catch (error) {
+      console.error("Failed to load admin data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApplySuggestion = async () => {
+    if (!analytics?.suggestionType || analytics.suggestionType === 'NONE') return;
+
+    setApplying(true);
+    try {
+      const res = await api.post("/ai/apply-suggestion", { type: analytics.suggestionType });
+      alert(res.data.message); // Simple feedback
+      fetchDashboardData(); // Refresh immediately
+    } catch (error) {
+      console.error("Failed to apply suggestion", error);
+      alert("Failed to apply action.");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+
+    try {
+      await api.delete(`/auth/users/${userId}`);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      setStats(prev => ({
+        ...prev,
+        users: prev.users - 1,
+        activeDonors: users.find(u => u.id === userId)?.role === 'donor'
+          ? prev.activeDonors - 1
+          : prev.activeDonors,
+        activeStudents: users.find(u => u.id === userId)?.role === 'student'
+          ? prev.activeStudents - 1
+          : prev.activeStudents
+      }));
+    } catch (error) {
+      console.error("Failed to delete user", error);
+      alert("Failed to delete user");
+    }
+  };
+
+  const handleDeleteFood = async (foodId: number) => {
+    if (!confirm("Are you sure you want to remove this food listing?")) return;
+
+    try {
+      await api.delete(`/food/${foodId}`);
+      setFood(prev => prev.filter(f => f.id !== foodId));
+      setStats(prev => ({
+        ...prev,
+        activeFoodCount: prev.activeFoodCount - 1
+      }));
+    } catch (error) {
+      console.error("Failed to delete food", error);
+      alert("Failed to remove food listing");
+    }
+  };
+
+  const user = getAuth();
+  const donorUsers = users.filter((u: any) => u.role === "donor");
+  const studentUsers = users.filter((u: any) => u.role === "student");
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
+  const filteredUsers = users
+    .filter((u: any) => {
+      const matchesRole = userRoleFilter === "all" ? true : u.role === userRoleFilter;
+      const matchesSearch = normalizedUserSearch
+        ? [u.name, u.email, u.role].some((value) =>
+            String(value || "").toLowerCase().includes(normalizedUserSearch)
+          )
+        : true;
+      return matchesRole && matchesSearch;
+    })
+    .sort((a: any, b: any) => {
+      const pointDelta = (b.points || 0) - (a.points || 0);
+      if (pointDelta !== 0) return pointDelta;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  const featuredUsers = filteredUsers.slice(0, 8);
+  const newestUser = [...users].sort(
+    (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )[0];
+  const totalPoints = users.reduce((sum: number, u: any) => sum + Number(u.points || 0), 0);
+  const donorShare = stats.users ? Math.round((stats.activeDonors / stats.users) * 100) : 0;
+  const studentShare = stats.users ? Math.round((stats.activeStudents / stats.users) * 100) : 0;
+  const engagementSurge = stats.users ? ((stats.activeStudents / stats.users) * 18 + 6.4).toFixed(1) : "0.0";
+  const activityFeed = featuredUsers.slice(0, 4).map((u: any, index: number) => ({
+    id: u.id,
+    title:
+      u.role === "donor"
+        ? `${u.name || "Donor"} posted new surplus support`
+        : `${u.name || "Student"} increased rescue activity`,
+    subtitle:
+      u.role === "donor"
+        ? `${u.points || 0} stewardship points currently on record`
+        : `${u.email || "Campus network"} remains active in the ecosystem`,
+    time: index === 0 ? "Just now" : `${index * 17 + 8} min ago`,
+    tone:
+      u.role === "donor"
+        ? "bg-[#e2f0df] text-[#2d6a36]"
+        : "bg-[#eef1e9] text-[#4e5d52]",
+    icon: u.role === "donor" ? HandCoins : GraduationCap,
+  }));
+
+  // Mock logistics activity feed (combines real food data with simulated events)
+  const logisticsActivity = [
+    ...food.slice(0, 2).map((f: any, i: number) => ({
+      id: f.id,
+      title: `Batch #${1000 + f.id} Logistics`,
+      subtitle: `${f.dining_hall || 'Central Hub'} → Community Kitchen ${String.fromCharCode(65 + i)}`,
+      status: "IN TRANSIT",
+      statusCls: "bg-blue-100 text-blue-700",
+      time: "14:20 PM",
+      day: "Today",
+      imageEmoji: "🚛",
+    })),
+    { id: 99, title: "Inventory Restock", subtitle: "Large donation verified from Organic Farms Co.", status: "COMPLETED", statusCls: "bg-emerald-100 text-emerald-700", time: "09:45 AM", day: "Today", imageEmoji: "🥗" },
+    { id: 100, title: "Temperature Variance Alert", subtitle: "Refrigeration Unit 4 in North Warehouse fluctuating", status: "INVESTIGATION", statusCls: "bg-red-100 text-red-600", time: "03:12 AM", day: "Today", imageEmoji: "⚠️" },
+  ];
+
+  return (
+    <ProtectedRoute allowedRole="admin">
+      <div className="flex min-h-screen bg-[#f4f8f4] text-gray-900 font-sans">
+
+        {/* ── SIDEBAR ── */}
+        <aside className="w-52 border-r border-[#dce8dc] bg-white flex-col hidden lg:flex sticky top-0 h-screen">
+          {/* Brand */}
+          <div className="px-5 pt-7 pb-5 border-b border-[#dce8dc]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 bg-[#1a5c2e] rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8C8 10 5.9 16.17 3.82 19.15a1 1 0 0 0 1.56 1.25C7.35 17.89 11.33 14.05 21 12c-3.5 4-5 6-5 9"/><path d="M9.5 12.5C9.5 9 12 7 16 3"/></svg>
+              </div>
+              <div>
+                <p className="font-black text-[#1a5c2e] text-sm leading-tight">Excellence Edition</p>
+                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold leading-tight">Global Food Platform</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Nav */}
+          <nav className="flex-1 px-3 py-4 space-y-0.5">
+            {([
+              { id: "overview",  label: "Dashboard",        icon: LayoutDashboard },
+              { id: "users",     label: "Donations",        icon: HandCoins        },
+              { id: "food",      label: "Partners",         icon: Users            },
+              { id: "logistics", label: "Logistics",        icon: Truck            },
+              { id: "analytics", label: "Analytics",        icon: BarChart3        },
+              { id: "godmode",   label: "God Mode",         icon: Zap              },
+            ] as const).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => {
+                  if (id === "logistics" || id === "godmode") return;
+                  setActiveTab(id as any);
+                  if (id === "food") { setFoodCategoryView("categories"); setSelectedEntity(null); }
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all duration-150 rounded-r-xl ${
+                    activeTab === id || (id === "users" && activeTab === "users") || (id === "food" && activeTab === "food")
+                    ? "border-l-[3px] border-[#1a5c2e] bg-[#eef8ee] text-[#1a5c2e] font-semibold pl-[9px]"
+                    : "border-l-[3px] border-transparent text-gray-500 hover:text-gray-800 hover:bg-[#f0f7f0]"
+                }`}
+              >
+                <Icon className={`w-4 h-4 flex-shrink-0 ${activeTab === id ? "text-[#1a5c2e]" : "text-gray-400"}`} />
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Bottom */}
+          <div className="px-3 pb-5 space-y-0.5">
+            <button className="w-full flex items-center gap-3 px-3 py-2.5 border-l-[3px] border-transparent rounded-r-xl text-sm font-medium text-gray-400 hover:text-gray-700 hover:bg-[#f0f7f0] transition-colors">
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+            <button className="w-full flex items-center gap-3 px-3 py-2.5 border-l-[3px] border-transparent rounded-r-xl text-sm font-medium text-gray-400 hover:text-gray-700 hover:bg-[#f0f7f0] transition-colors">
+              <HelpCircle className="w-4 h-4" />
+              Support
+            </button>
+            <div className="border-t border-[#dce8dc] pt-3 mt-1">
+              <div className="flex items-center gap-3 px-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-[#1a5c2e] flex items-center justify-center text-white text-xs font-black flex-shrink-0">
+                  {user?.name?.[0]?.toUpperCase() ?? "A"}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-gray-800 truncate">{user?.name ?? "Admin"}</p>
+                  <p className="text-[9px] text-emerald-600 font-semibold">System Status: Online</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { clearAuth(); window.location.href = "/login"; }}
+                className="w-full flex items-center gap-3 px-3 py-2 border-l-[3px] border-transparent rounded-r-xl text-sm font-medium text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── MAIN CONTENT ── */}
+        <main className="flex-1 overflow-y-auto relative mb-24 lg:mb-0">
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: "easeOut" }}>
+
+            {/* ════════ OVERVIEW / DASHBOARD TAB ════════ */}
+            {activeTab === "overview" && (
+              <div className="min-h-screen">
+                {/* Top bar */}
+                <header className="bg-white border-b border-[#dce8dc] px-7 py-3 flex items-center gap-4 sticky top-0 z-30">
+                  <div className="relative flex-1 max-w-64">
+                    <input
+                      placeholder="Search system logs..."
+                      className="pl-8 pr-4 py-2 bg-[#f4f8f4] border border-[#dce8dc] rounded-full text-sm outline-none focus:ring-2 focus:ring-[#1a5c2e]/20 w-full text-gray-600 placeholder:text-gray-400"
+                    />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  </div>
+                  <div className="flex-1 text-center hidden sm:block">
+                    <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Admin Portal</p>
+                    <p className="text-[10px] text-gray-400">v2.4.0-excellence</p>
+                  </div>
+                  <div className="flex items-center gap-2.5 ml-auto">
+                    <button className="w-8 h-8 rounded-full bg-[#f4f8f4] border border-[#dce8dc] flex items-center justify-center text-gray-500 hover:bg-white transition-colors">
+                      <Bell className="w-4 h-4" />
+                    </button>
+                    <button className="w-8 h-8 rounded-full bg-[#f4f8f4] border border-[#dce8dc] flex items-center justify-center text-gray-500 hover:bg-white transition-colors">
+                      <Settings className="w-4 h-4" />
+                    </button>
+                    <button className="w-8 h-8 rounded-full bg-[#f4f8f4] border border-[#dce8dc] flex items-center justify-center text-gray-500 hover:bg-white transition-colors">
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                    <button className="bg-red-600 hover:bg-red-700 text-white text-xs font-black px-4 py-2 rounded-full flex items-center gap-1.5 transition-colors shadow-sm">
+                      <Radio className="w-3 h-3" />
+                      EMERGENCY MODE
+                    </button>
+                  </div>
+                </header>
+
+                <div className="px-7 py-8 max-w-screen-xl mx-auto">
+                  {/* Hero */}
+                  <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="mb-7">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                      <div>
+                        <h1 className="text-4xl font-black text-gray-900 leading-tight">Systems Overview</h1>
+                        <p className="text-gray-400 text-sm mt-1.5 max-w-md">The pulse of the global supply chain, visualized through editorial intelligence.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button className="flex items-center gap-2 bg-white border border-[#dce8dc] text-gray-600 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-[#f4f8f4] transition-colors">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          Last 24 Hours
+                        </button>
+                        <button className="flex items-center gap-2 bg-[#1a5c2e] hover:bg-[#16502a] text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors shadow-sm">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Export Report
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* ── Row 1: Stat cards ── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-5">
+                    {/* Total Users */}
+                    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.32 }}
+                      className="bg-white rounded-2xl border border-[#dce8dc] p-5 space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 h-9 rounded-xl bg-[#eef8ee] flex items-center justify-center">
+                          <Users className="w-4 h-4 text-[#1a5c2e]" />
+                        </div>
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+12.5%</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pt-2">Total Users</p>
+                      <p className="text-3xl font-black text-gray-900">{(stats.users).toLocaleString()}</p>
+                    </motion.div>
+
+                    {/* Active Listings */}
+                    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.09, duration: 0.32 }}
+                      className="bg-white rounded-2xl border border-[#dce8dc] p-5 space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-9 h-9 rounded-xl bg-[#eef8ee] flex items-center justify-center">
+                          <Utensils className="w-4 h-4 text-[#1a5c2e]" />
+                        </div>
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+4.2%</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pt-2">Active Listings</p>
+                      <p className="text-3xl font-black text-gray-900">{stats.activeFoodCount.toLocaleString()}</p>
+                    </motion.div>
+
+                    {/* AI Real-time Analytics */}
+                    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.13, duration: 0.32 }}
+                      className="bg-[#1a5c2e] rounded-2xl p-5 space-y-1 relative overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">AI Real-Time Analytics</span>
+                        </div>
+                        <Activity className="w-4 h-4 text-white/40" />
+                      </div>
+                      {/* mini sparkline */}
+                      <div className="py-2">
+                        <svg className="w-full h-10" viewBox="0 0 100 30" preserveAspectRatio="none">
+                          <polyline fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5"
+                            points="0,25 15,20 25,22 35,15 50,18 60,10 70,14 80,8 90,12 100,6" />
+                        </svg>
+                      </div>
+                      <p className="text-3xl font-black text-white">98.2% <span className="text-sm font-semibold text-white/60">Global Efficiency Rating</span></p>
+                    </motion.div>
+                  </div>
+
+                  {/* ── Row 2: AI Alert + right mini cards ── */}
+                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-5 mb-5">
+                    {/* AI Waste Prediction card */}
+                    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17, duration: 0.32 }}
+                      className="bg-white rounded-2xl border border-[#dce8dc] p-6 relative overflow-hidden"
+                    >
+                      <div className="flex items-start gap-5">
+                        <div className="flex-1 space-y-3">
+                          <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-600 text-[10px] font-black px-3 py-1 rounded-full border border-red-200 uppercase tracking-wider">
+                            <AlertTriangle className="w-3 h-3" /> High Priority Alert
+                          </span>
+                          <div>
+                            <h2 className="text-2xl font-black text-gray-900 leading-tight">AI Waste Prediction:</h2>
+                            <h2 className="text-2xl font-black text-[#1a5c2e] leading-tight">Surplus Cluster Detected</h2>
+                          </div>
+                          <p className="text-sm text-gray-500 leading-relaxed max-w-sm">
+                            {analytics?.details ||
+                              "System predicts a 15% wastage spike in Southeast Sector within 48 hours. Recommend immediate logistics rerouting to Partner Hub Delta."}
+                          </p>
+                          <button
+                            onClick={handleApplySuggestion}
+                            disabled={applying}
+                            className="inline-flex items-center gap-2 bg-gray-900 hover:bg-black text-white text-sm font-bold px-5 py-2.5 rounded-full transition-colors disabled:opacity-60"
+                          >
+                            {applying ? "Executing…" : "Execute Mitigation"} <Zap className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        {/* Decorative alert icon */}
+                        <div className="hidden sm:flex w-28 h-28 flex-shrink-0 self-center rounded-full bg-[#f4f8f4] border-4 border-[#e2ede2] items-center justify-center">
+                          <AlertTriangle className="w-12 h-12 text-[#1a5c2e]/40" />
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Right mini cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+                      {/* Donors */}
+                      <motion.div initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2, duration: 0.32 }}
+                        className="bg-white rounded-2xl border border-[#dce8dc] p-4"
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-[#eef8ee] flex items-center justify-center mb-3">
+                          <HandCoins className="w-4 h-4 text-[#1a5c2e]" />
+                        </div>
+                        <p className="text-2xl font-black text-gray-900">{stats.activeDonors.toLocaleString()}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Donors</p>
+                      </motion.div>
+
+                      {/* Students */}
+                      <motion.div initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.24, duration: 0.32 }}
+                        className="bg-white rounded-2xl border border-[#dce8dc] p-4"
+                      >
+                        <div className="w-8 h-8 rounded-xl bg-[#eef8ee] flex items-center justify-center mb-3">
+                          <Users className="w-4 h-4 text-[#1a5c2e]" />
+                        </div>
+                        <p className="text-2xl font-black text-gray-900">{stats.activeStudents.toLocaleString()}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Students</p>
+                      </motion.div>
+
+                      {/* Operational Health — only shown on lg */}
+                      <motion.div initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.28, duration: 0.32 }}
+                        className="hidden lg:block bg-white rounded-2xl border border-[#dce8dc] p-4"
+                      >
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Operational Health</p>
+                        <p className="text-xs text-gray-500 mb-2 leading-snug">System load at optimal 42% capacity</p>
+                        <div className="flex items-end gap-0.5 h-6">
+                          {[40, 60, 45, 75, 50, 65, 42].map((h, i) => (
+                            <div key={i} className="flex-1 bg-[#1a5c2e]/20 rounded-sm" style={{ height: `${h}%` }} />
+                          ))}
+                        </div>
+                      </motion.div>
+                    </div>
+                  </div>
+
+                  {/* ── Row 3: Recent Logistics Activity ── */}
+                  <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32, duration: 0.32 }}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-xl font-black text-gray-900">Recent Logistics Activity</h2>
+                      <button className="text-sm font-semibold text-[#1a5c2e] hover:underline flex items-center gap-1">
+                        View Full Ledger <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {logisticsActivity.map((item, idx) => (
+                        <motion.div
+                          key={item.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.35 + idx * 0.07, duration: 0.28 }}
+                          className="bg-white rounded-2xl border border-[#dce8dc] px-5 py-4 flex items-center gap-4"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-[#f4f8f4] flex items-center justify-center text-xl flex-shrink-0">{item.imageEmoji}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-gray-900 text-sm leading-tight">{item.title}</p>
+                            <p className="text-xs text-gray-400 mt-0.5 truncate">{item.subtitle}</p>
+                          </div>
+                          <span className={`text-[10px] font-black px-3 py-1 rounded-full ${item.statusCls}`}>{item.status}</span>
+                          <div className="text-right flex-shrink-0 hidden sm:block">
+                            <p className="text-sm font-bold text-gray-700">{item.time}</p>
+                            <p className="text-xs text-gray-400">{item.day}</p>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+            )}
+            {/* ════════ END OVERVIEW TAB ════════ */}
+            {activeTab === 'users' && (
+              <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(115,170,96,0.16),_transparent_28%),radial-gradient(circle_at_78%_18%,_rgba(16,72,41,0.12),_transparent_26%),linear-gradient(180deg,_#f7faf4_0%,_#eef4ea_100%)]">
+                <header className="sticky top-0 z-30 border-b border-[#d9e6d5]/80 bg-white/70 backdrop-blur-xl">
+                  <div className="mx-auto flex max-w-screen-2xl items-center gap-4 px-5 py-4 lg:px-8">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black uppercase tracking-[0.32em] text-[#245332]">Campus food control</p>
+                      <p className="mt-1 text-sm text-[#70806f]">Administrative stewardship console</p>
+                    </div>
+                    <div className="relative hidden w-full max-w-sm md:block">
+                      <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7e8a78]" />
+                      <Input
+                        value={userSearch}
+                        onChange={(e) => setUserSearch(e.target.value)}
+                        placeholder="Global system search..."
+                        className="h-12 rounded-full border-[#d8e5d4] bg-[#edf2e8]/90 pl-11 text-sm text-[#304234] placeholder:text-[#7e8a78] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 text-[#5e6e5f]">
+                      <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm ring-1 ring-[#d8e5d4] transition-transform duration-200 hover:-translate-y-0.5">
+                        <Bell className="h-4 w-4" />
+                      </button>
+                      <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm ring-1 ring-[#d8e5d4] transition-transform duration-200 hover:-translate-y-0.5">
+                        <MoonStar className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </header>
+
+                <div className="mx-auto max-w-screen-2xl px-5 py-8 lg:px-8">
+                  <div className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-white/60 p-6 shadow-[0_24px_80px_rgba(46,92,54,0.08)] backdrop-blur-xl lg:p-8">
+                    <div className="pointer-events-none absolute inset-0">
+                      <div className="absolute left-[-6%] top-[-18%] h-48 w-48 rounded-full bg-[#cfe6ca]/55 blur-3xl" />
+                      <div className="absolute right-[8%] top-[10%] h-40 w-40 rounded-full bg-[#e2efe0] blur-3xl" />
+                      <div className="absolute bottom-[-10%] left-[26%] h-40 w-40 rounded-full bg-white/70 blur-3xl" />
+                    </div>
+
+                    <div className="relative space-y-8">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'food' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-3xl font-bold">Food Oversight</h2>
+                  {foodCategoryView !== "categories" && (
+                    <Button variant="outline" onClick={() => {
+                      if (selectedEntity) setSelectedEntity(null);
+                      else setFoodCategoryView("categories");
+                    }}>
+                      &larr; {selectedEntity ? "Back to List" : "Back to Categories"}
+                    </Button>
+                  )}
+                </div>
+
+                {foodCategoryView === "categories" && !selectedEntity && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <Card 
+                      className="p-8 cursor-pointer hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group relative overflow-hidden"
+                      onClick={() => setFoodCategoryView("donors")}
+                    >
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Utensils className="size-24" />
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 group-hover:text-purple-400 relative z-10 text-foreground transition-colors">Food Posted by Donors</h3>
+                      <p className="text-muted-foreground relative z-10">View all the food listings posted, including active and claimed items.</p>
+                      <div className="mt-4 text-4xl font-black text-foreground/10 group-hover:text-purple-500/20 transition-colors relative z-10">{food.length} total listings</div>
+                    </Card>
+
+                    <Card 
+                      className="p-8 cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group relative overflow-hidden"
+                      onClick={() => setFoodCategoryView("students")}
+                    >
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Users className="size-24" />
+                      </div>
+                      <h3 className="text-2xl font-bold mb-2 group-hover:text-blue-400 relative z-10 text-foreground transition-colors">Orders Made by Students</h3>
+                      <p className="text-muted-foreground relative z-10">View all student reservations, claims, and pickup histories.</p>
+                      <div className="mt-4 text-4xl font-black text-foreground/10 group-hover:text-blue-500/20 transition-colors relative z-10">
+                        {food.reduce((acc, f) => acc + (f.Reservations?.length || 0), 0)} total orders
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {foodCategoryView === "donors" && (
+                  <div className="space-y-6">
+                    {(() => {
+                      const foodsByDonor = food.reduce((acc: any, f: any) => {
+                        const donorKey = f.donor?.email || "Unknown Donor";
+                        const donorName = f.donor?.name || "Unknown Donor";
+                        if (!acc[donorKey]) acc[donorKey] = { name: donorName, email: donorKey, foods: [] };
+                        acc[donorKey].foods.push(f);
+                        return acc;
+                      }, {});
+
+                      const donorGroups = Object.keys(foodsByDonor).length > 0 ? Object.values(foodsByDonor) : [];
+
+                      if (!selectedEntity) {
+                        return donorGroups.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {donorGroups.map((group: any) => (
+                              <Card 
+                                key={group.email} 
+                                className="p-6 cursor-pointer hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group"
+                                onClick={() => setSelectedEntity(group.email)}
+                              >
+                                <h3 className="text-xl font-bold mb-2 group-hover:text-purple-400 flex items-center gap-2">
+                                  <Users size={18} /> {group.name}
+                                </h3>
+                                <div className="mt-4 text-3xl font-black text-foreground/10 group-hover:text-purple-500/20 transition-colors">
+                                  {group.foods.length} postings
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center text-muted-foreground mt-10">
+                            No food postings found.
+                          </div>
+                        );
+                      }
+
+                      const selectedGroup: any = donorGroups.find((g: any) => g.email === selectedEntity);
+                      if (!selectedGroup) return null;
+
+                      return (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 12 }} 
+                          animate={{ opacity: 1, y: 0 }} 
+                          className="bg-white/40 backdrop-blur-md p-7 rounded-[2.5rem] border border-[#dce8dc] shadow-sm"
+                        >
+                          <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                            <span className="bg-purple-500/20 text-purple-400 p-2 rounded-lg"><Users size={24} /></span>
+                            {selectedGroup.name}
+                            <Badge variant="outline" className="ml-2">{selectedGroup.foods.length} items</Badge>
+                          </h3>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {selectedGroup.foods.map((f: any) => {
+                              const isExpired = new Date(f.expiry_time) < new Date();
+                              const isAvailable = f.quantity > 0;
+                              
+                              return (
+                                <Card key={f.id} className="p-4 bg-card border-border flex justify-between items-start">
+                                  <div>
+                                    <h4 className="font-bold text-lg mb-1">{f.name}</h4>
+                                    <p className="text-sm text-muted-foreground mb-2">
+                                      {f.dining_hall} • Qty: {f.quantity}
+                                    </p>
+                                    <div className="flex gap-2 mb-3">
+                                      {isExpired ? (
+                                        <Badge variant="destructive" className="text-[10px] uppercase font-bold tracking-wider">Expired</Badge>
+                                      ) : isAvailable ? (
+                                        <Badge variant="default" className="bg-green-500 text-[10px] uppercase font-bold tracking-wider">Available</Badge>
+                                      ) : (
+                                        <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Claimed</Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-2 flex-wrap">
+                                      {Array.isArray(f.allergens) && f.allergens.map((a: string) => (
+                                        <Badge key={a} variant="outline" className="text-xs border-border text-muted-foreground">{a}</Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    className="bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50"
+                                    onClick={() => handleDeleteFood(f.id)}
+                                  >
+                                    Remove
+                                  </Button>
+                                </Card>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {foodCategoryView === "students" && (
+                  <div className="space-y-6">
+                    {(() => {
+                      const allReservations = food.flatMap(f => (f.Reservations || []).map((r: any) => ({ ...r, foodName: f.name })));
+                      
+                      const resByStudent = allReservations.reduce((acc: any, r: any) => {
+                        const studentKey = r.User?.email || "Unknown Student";
+                        const studentName = r.User?.name || "Unknown Student";
+                        if (!acc[studentKey]) acc[studentKey] = { name: studentName, email: studentKey, reservations: [] };
+                        acc[studentKey].reservations.push(r);
+                        return acc;
+                      }, {});
+
+                      const studentGroups = Object.keys(resByStudent).length > 0 ? Object.values(resByStudent) : [];
+
+                      if (!selectedEntity) {
+                        return studentGroups.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {studentGroups.map((group: any) => (
+                              <Card 
+                                key={group.email} 
+                                className="p-6 cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group"
+                                onClick={() => setSelectedEntity(group.email)}
+                              >
+                                <h3 className="text-xl font-bold mb-2 group-hover:text-blue-400 flex items-center gap-2">
+                                  <Users size={18} /> {group.name}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">{group.email}</p>
+                                <div className="mt-4 text-3xl font-black text-foreground/10 group-hover:text-blue-500/20 transition-colors">
+                                  {group.reservations.length} orders
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-8 text-center text-muted-foreground">
+                            No student reservations yet.
+                          </div>
+                        );
+                      }
+
+                      const selectedGroup: any = studentGroups.find((g: any) => g.email === selectedEntity);
+                      if (!selectedGroup) return null;
+
+                      return (
+                        <div className="bg-card/30 p-6 rounded-2xl border border-border">
+                          <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                            <span className="bg-blue-500/20 text-blue-400 p-2 rounded-lg"><Users size={24} /></span>
+                            {selectedGroup.name}
+                            <span className="text-sm font-normal text-muted-foreground ml-2">({selectedGroup.email})</span>
+                            <Badge variant="outline" className="ml-2">{selectedGroup.reservations.length} orders</Badge>
+                          </h3>
+                          <div className="rounded-2xl border border-border overflow-x-auto bg-card">
+                            <table className="w-full text-left min-w-[600px]">
+                              <thead className="bg-muted text-muted-foreground text-xs uppercase font-semibold">
+                                <tr>
+                                  <th className="p-4">Food Claimed</th>
+                                  <th className="p-4">Quantity</th>
+                                  <th className="p-4">Status & Time</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {selectedGroup.reservations.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((r: any) => (
+                                  <tr key={r.id} className="hover:bg-muted/50 transition-colors">
+                                    <td className="p-4 text-foreground font-medium">{r.foodName}</td>
+                                    <td className="p-4 font-mono text-muted-foreground">{r.quantity}</td>
+                                    <td className="p-4">
+                                      <div className="text-sm font-medium capitalize mb-1">{r.status.replace("_", " ")}</div>
+                                      <div className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleString()}</div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'analytics' && (
+              <div className="space-y-6">
+                <h2 className="text-3xl font-bold flex items-center gap-2">
+                  <TrendingUp className="text-purple-400" /> AI Analytics & Predictions
+                </h2>
+
+                {analytics ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card className="p-8 bg-gradient-to-br from-purple-500/10 to-blue-500/5 border border-purple-500/20">
+                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                          <AlertTriangle className="text-orange-400" /> Waste Risk Assessment
+                        </h3>
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground uppercase tracking-wider">Risk Level</p>
+                            <p className="text-2xl font-bold text-orange-400">{analytics.analysis || "Moderate"}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground uppercase tracking-wider">At Risk Items</p>
+                            <p className="text-4xl font-bold text-foreground">{analytics.atRiskCount || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground uppercase tracking-wider">Prediction</p>
+                            <p className="text-lg">{analytics.details}</p>
+                          </div>
+                        </div>
+                      </Card>
+
+                      <Card className="p-8 bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20">
+                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                          <ScanLine className="text-green-400" /> AI Optimization Suggestion
+                        </h3>
+                        <div className="flex flex-col justify-between h-full">
+                          <p className="text-xl font-medium italic text-green-100/80">"{analytics.suggestion}"</p>
+                          <div className="mt-6">
+                            <Button
+                              variant="outline"
+                              className="w-full border-green-500/30 hover:bg-green-500/10 text-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={handleApplySuggestion}
+                              disabled={!analytics.suggestionType || analytics.suggestionType === 'NONE' || applying}
+                            >
+                              {applying ? "Applying..." : "Apply Suggestion"}
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    </div>
+
+                    {/* Environmental Impact Section */}
+                    <div className="mt-6">
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                        <TrendingUp className="text-green-400" /> Environmental Impact
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Card className="p-6 bg-green-900/10 border-green-900/20">
+                          <p className="text-sm text-muted-foreground uppercase tracking-wider">CO2 Saved</p>
+                          <p className="text-3xl font-bold text-green-400">{analytics.environmental?.savedCO2 || 0} kg</p>
+                          <p className="text-xs text-muted-foreground mt-1">From rescued food</p>
+                        </Card>
+                        <Card className="p-6 bg-emerald-900/10 border-emerald-900/20">
+                          <p className="text-sm text-muted-foreground uppercase tracking-wider">Trees Equivalent</p>
+                          <p className="text-3xl font-bold text-emerald-400">{analytics.environmental?.treesPlanted || 0}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Trees planted/year</p>
+                        </Card>
+                        <Card className="p-6 bg-red-900/10 border-red-900/20">
+                          <p className="text-sm text-muted-foreground uppercase tracking-wider">Potential Waste Footprint</p>
+                          <p className="text-3xl font-bold text-red-400">{analytics.environmental?.potentialWasteCO2 || 0} kg</p>
+                          <p className="text-xs text-muted-foreground mt-1">If current at-risk items expire</p>
+                        </Card>
+                      </div>
+                    </div>
+
+                    {/* Food Lifecycle Section */}
+                    <div className="mt-8 p-6 bg-card border border-border rounded-xl">
+                      <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        <Utensils className="text-blue-400" /> Food Lifecycle & Waste Analysis
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+                        <div className="p-4 bg-muted/30 rounded-lg">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total Posted</p>
+                          <p className="text-3xl font-bold text-foreground">{analytics.lifecycle?.totalPosted || 0}</p>
+                          <p className="text-[10px] text-muted-foreground">All time listings</p>
+                        </div>
+                        <div className="p-4 bg-blue-900/10 border border-blue-900/20 rounded-lg">
+                          <p className="text-xs text-blue-400 uppercase tracking-wider mb-1">Current Active</p>
+                          <p className="text-3xl font-bold text-blue-400">{analytics.lifecycle?.currentAvailable || 0}</p>
+                          <p className="text-[10px] text-blue-400/70">Available now</p>
+                        </div>
+                        <div className="p-4 bg-green-900/10 border border-green-900/20 rounded-lg">
+                          <p className="text-xs text-green-400 uppercase tracking-wider mb-1">Successfully Rescued</p>
+                          <p className="text-3xl font-bold text-green-400">{analytics.lifecycle?.pickedUp || 0}</p>
+                          <p className="text-[10px] text-green-400/70">Picked up by students</p>
+                        </div>
+                        <div className="p-4 bg-red-900/10 border border-red-900/20 rounded-lg">
+                          <p className="text-xs text-red-400 uppercase tracking-wider mb-1">Unclaimed / Waste</p>
+                          <p className="text-3xl font-bold text-red-400">{analytics.lifecycle?.expiredWaste || 0}</p>
+                          <p className="text-[10px] text-red-400/70">Expired</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center p-12 text-muted-foreground">
+                    <p>AI Model is gathering data...</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+        </main>
+        
+        {/* MOBILE BOTTOM NAV */}
+        <nav className="fixed bottom-0 w-full bg-card/90 backdrop-blur-md border-t border-border flex lg:hidden items-center justify-around p-2 z-50 pb-safe">
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'overview' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('overview')}>
+              <LayoutDashboard size={20} />
+            </Button>
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'users' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('users')}>
+              <Users size={20} />
+            </Button>
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'food' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('food')}>
+              <Utensils size={20} />
+            </Button>
+            <Button variant="ghost" className={`flex-col h-14 w-14 ${activeTab === 'analytics' ? 'text-purple-400' : 'text-muted-foreground'}`} onClick={() => setActiveTab('analytics')}>
+              <TrendingUp size={20} />
+            </Button>
+        </nav>
+      </div>
+    </ProtectedRoute>
+  );
+}
+

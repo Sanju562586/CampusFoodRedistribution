@@ -18,7 +18,7 @@ type Props = {
     dining_hall: string;
     expiry_time: string;
     allergens: string[];
-    image_url?: string;
+    image_url?: string | null;
   };
 };
 

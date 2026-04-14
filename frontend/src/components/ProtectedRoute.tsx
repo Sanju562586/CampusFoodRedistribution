@@ -40,7 +40,7 @@ export default function ProtectedRoute({ children, allowedRole }: Props) {
       } catch (err: any) {
         // 401: Invalid Token, 404: User Deleted
         if (err.response && (err.response.status === 401 || err.response.status === 403 || err.response.status === 404)) {
-            console.error("Session invalid:", err);
+            console.warn("Session invalid or user doesn't exist. Triggering re-login.");
             clearAuth();
             router.replace("/login");
         } else {

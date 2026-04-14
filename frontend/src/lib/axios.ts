@@ -16,7 +16,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    if (error.response && [401, 403, 404].includes(error.response.status)) {
       // Token is invalid/expired or user was deleted
       if (typeof window !== "undefined" && !window.location.pathname.includes('/login')) {
         localStorage.removeItem("campus_food_auth");

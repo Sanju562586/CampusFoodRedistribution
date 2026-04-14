@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
 import { ModeToggle } from "@/components/mode-toggle";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,10 +36,17 @@ const itemVariants = {
 
 export default function StudentSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const isActive = (href: string, exact: boolean) => {
+    if (href === "/dashboard") {
+      return pathname === "/dashboard" && searchParams.get("tab") !== "profile";
+    }
+    if (href === "/dashboard?tab=profile") {
+      return pathname === "/dashboard" && searchParams.get("tab") === "profile";
+    }
     const base = href.split("?")[0];
-    if (exact) return pathname === "/dashboard";
+    if (exact) return pathname === base;
     return pathname.startsWith(base) && base !== "/dashboard";
   };
 

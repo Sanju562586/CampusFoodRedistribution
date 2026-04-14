@@ -39,6 +39,12 @@ router.post(
             // Publish to QStash to protect database from write spikes
             const qstashClient = new Client({ token: process.env.QSTASH_TOKEN });
             const targetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/api/reservation/worker-create`;
+
+            // QStash cannot reach loopback addresses (localhost/127.0.0.1)
+            if (targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) {
+                console.warn("⚠️ Localhost detected in target URL. QStash cannot reach local networks. Executing direct DB write.");
+                return await directReservationCreate(payload, req.pusher, res);
+            }
             
             await qstashClient.publishJSON({
                 url: targetUrl,

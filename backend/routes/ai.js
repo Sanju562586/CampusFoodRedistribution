@@ -354,14 +354,23 @@ router.get(
         where: {
           quantity:    { [Op.gt]: 0 },
           expiry_time: { [Op.between]: [now, new Date(now.getTime() + 24 * 60 * 60 * 1000)] },
+          name: { [Op.notLike]: '%[SALE]%' }
+        },
+      });
+
+      const surplusToDonate = await Food.count({
+        where: {
+          quantity:    { [Op.gt]: 5 },
+          expiry_time: { [Op.gt]: now },
+          name: { [Op.notLike]: '%[PRIORITY]%' }
         },
       });
 
       if (expiringIn24h > 0) {
         suggestion     = `Run a 'Flash Sale' for ${expiringIn24h} urgent items.`;
         suggestionType = "DISCOUNT";
-      } else if (totalQuantity > 20) {
-        suggestion     = `High volume detected. Consider donating surplus.`;
+      } else if (surplusToDonate > 0) {
+        suggestion     = `High volume detected. Consider marking ${surplusToDonate} items for priority donation.`;
         suggestionType = "DONATE";
       }
 
@@ -445,6 +454,7 @@ router.post("/apply-suggestion", authenticate, authorize("admin"), async (req, r
         where: {
           quantity:    { [Op.gt]: 0 },
           expiry_time: { [Op.between]: [now, new Date(now.getTime() + 24 * 60 * 60 * 1000)] },
+          name: { [Op.notLike]: '%[SALE]%' }
         },
       });
       for (const item of urgentItems) {
@@ -457,7 +467,11 @@ router.post("/apply-suggestion", authenticate, authorize("admin"), async (req, r
 
     } else if (type === "DONATE") {
       const surplusItems = await Food.findAll({
-        where: { quantity: { [Op.gt]: 5 }, expiry_time: { [Op.gt]: now } },
+        where: { 
+          quantity: { [Op.gt]: 5 }, 
+          expiry_time: { [Op.gt]: now },
+          name: { [Op.notLike]: '%[PRIORITY]%' }
+        },
       });
       for (const item of surplusItems) {
         if (!item.name.includes("[PRIORITY]")) {

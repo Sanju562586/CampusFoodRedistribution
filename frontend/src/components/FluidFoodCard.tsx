@@ -29,7 +29,7 @@ const FALLBACK_IMAGES = [
   "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800&auto=format&fit=crop"
 ];
 
-export function getFoodImage(food: any): string {
+export function getFoodImage(food: Partial<Food>): string {
   if (food.image_url) {
     if (food.image_url.startsWith("http") || food.image_url.startsWith("data:")) return food.image_url;
     return `http://localhost:5000${food.image_url.startsWith('/') ? '' : '/'}${food.image_url}`;

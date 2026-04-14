@@ -1,7 +1,6 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const { Redis } = require("@upstash/redis");
 const { User, PendingUser } = require("../models");
@@ -14,26 +13,45 @@ const router = express.Router();
 const redis = Redis.fromEnv();
 
 // ─────────────────────────────────────────────
-// Email Transporter — Connection Pool
-// Keep connections open to reduce per-email overhead
+// Email Sender — Brevo (Sendinblue) HTTP API
+// Uses standard JSON REST request instead of SMTP port 587
 // ─────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  pool: true,
-  maxConnections: 5,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-transporter.verify((error) => {
-  if (error) {
-    console.error("[MAIL ERROR] Connection failed:", error.message);
-  } else {
-    console.log("[MAIL] Server is ready to send emails");
+async function sendEmailHttp(to, subject, html) {
+  if (!process.env.BREVO_API_KEY) {
+    console.log(`[DEV EMAIL] To: ${to} | Subject: ${subject} | (Missing BREVO_API_KEY)`);
+    return false;
   }
-});
+  
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: {
+          name: "CampusFood",
+          email: process.env.EMAIL_USER || "noreplyfr213@gmail.com"
+        },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: html,
+      }),
+    });
+
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(`Brevo API Error: ${JSON.stringify(data)}`);
+    }
+    console.log(`[MAIL] Email sent successfully to ${to}`);
+    return true;
+  } catch (error) {
+    console.error("[MAIL ERROR] Failed to send email via HTTP API:", error.message);
+    throw error;
+  }
+}
 
 // ─────────────────────────────────────────────
 // Request logger — console only (no fs I/O in serverless)
@@ -193,26 +211,21 @@ router.post("/register", async (req, res) => {
       verification_expires: otpExpires,
     });
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Verify Your Email - CampusFood",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #f9f9f9;">
-          <h2 style="color: #444; text-align: center;">Welcome to CampusFood!</h2>
-          <p style="color: #666; text-align: center;">Please verify your email address to continue.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4CAF50; background: #e8f5e9; padding: 10px 20px; border-radius: 5px; border: 1px dashed #4CAF50;">${otp}</span>
-          </div>
-          <p style="color: #666; text-align: center;">This code expires in 10 minutes.</p>
+    const emailSubject = "Verify Your Email - CampusFood";
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #f9f9f9;">
+        <h2 style="color: #444; text-align: center;">Welcome to CampusFood!</h2>
+        <p style="color: #666; text-align: center;">Please verify your email address to continue.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4CAF50; background: #e8f5e9; padding: 10px 20px; border-radius: 5px; border: 1px dashed #4CAF50;">${otp}</span>
         </div>
-      `,
-    };
+        <p style="color: #666; text-align: center;">This code expires in 10 minutes.</p>
+      </div>
+    `;
 
     try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        await transporter.sendMail(mailOptions);
-      } else {
+      const sent = await sendEmailHttp(email, emailSubject, emailHtml);
+      if (!sent) {
         console.log(`[DEV] Verification OTP for ${email}: ${otp}`);
       }
     } catch (emailErr) {
@@ -383,37 +396,33 @@ router.post("/forgot-password", async (req, res) => {
 
     console.log(`[OTP] Password reset OTP for ${email}: ${otp}`);
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Password Reset Verification Code",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #f9f9f9;">
-          <div style="text-align: center; padding-bottom: 20px;">
-            <h1 style="color: #333; margin: 0;">CampusFood</h1>
-          </div>
-          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <h2 style="color: #444; margin-top: 0;">Password Reset</h2>
-            <p style="color: #666; line-height: 1.6;">You requested a password reset for your CampusFood account. Use the code below:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #ff6b6b; background: #fff0f0; padding: 10px 20px; border-radius: 5px; border: 1px dashed #ff6b6b;">${otp}</span>
-            </div>
-            <p style="color: #666; line-height: 1.6;">This code will expire in 10 minutes.</p>
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">If you didn't request this, you can safely ignore this email.</p>
-          </div>
-          <div style="text-align: center; padding-top: 20px; color: #aaa; font-size: 12px;">
-            &copy; ${new Date().getFullYear()} CampusFood. All rights reserved.
-          </div>
+    const emailSubject = "Password Reset Verification Code";
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #f9f9f9;">
+        <div style="text-align: center; padding-bottom: 20px;">
+          <h1 style="color: #333; margin: 0;">CampusFood</h1>
         </div>
-      `,
-    };
+        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <h2 style="color: #444; margin-top: 0;">Password Reset</h2>
+          <p style="color: #666; line-height: 1.6;">You requested a password reset for your CampusFood account. Use the code below:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #ff6b6b; background: #fff0f0; padding: 10px 20px; border-radius: 5px; border: 1px dashed #ff6b6b;">${otp}</span>
+          </div>
+          <p style="color: #666; line-height: 1.6;">This code will expire in 10 minutes.</p>
+          <p style="color: #999; font-size: 12px; margin-top: 30px;">If you didn't request this, you can safely ignore this email.</p>
+        </div>
+        <div style="text-align: center; padding-top: 20px; color: #aaa; font-size: 12px;">
+          &copy; ${new Date().getFullYear()} CampusFood. All rights reserved.
+        </div>
+      </div>
+    `;
 
     try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        await transporter.sendMail(mailOptions);
+      const sent = await sendEmailHttp(email, emailSubject, emailHtml);
+      if (sent) {
         res.json({ message: "OTP sent to email" });
       } else {
-        res.json({ message: "OTP generated (check server logs — email creds missing)" });
+        res.json({ message: "OTP generated (check server logs — API key missing)" });
       }
     } catch (emailErr) {
       console.error("Email send error:", emailErr.message);

@@ -44,7 +44,7 @@ export default function HistoryDetailsModal({ open, onClose, food }: Props) {
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-muted-foreground">Original Qty</span>
-                                <span className="font-medium">{food.quantity + (food.Reservations?.reduce((a: any, b: any) => a + b.quantity, 0) || 0)}</span>
+                                <span className="font-medium">{Number(food.quantity) + (Array.isArray(food.Reservations) ? food.Reservations.reduce((a: number, b: { quantity: number }) => a + b.quantity, 0) : 0)}</span>
                             </div>
                         </div>
                     </div>
@@ -62,8 +62,8 @@ export default function HistoryDetailsModal({ open, onClose, food }: Props) {
                         </DialogHeader>
 
                         <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                            {food.Reservations && food.Reservations.length > 0 ? (
-                                food.Reservations.map((res: any) => (
+                            {Array.isArray(food.Reservations) && food.Reservations.length > 0 ? (
+                                food.Reservations.map((res: { id: string | number; User?: { name?: string; college?: string; roll_number?: string }; quantity: number; status: string }) => (
                                     <div key={res.id} className="p-4 rounded-xl border border-border bg-background hover:bg-accent/50 transition-colors flex justify-between items-center group">
                                         <div className="flex items-center gap-4">
                                             <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold">

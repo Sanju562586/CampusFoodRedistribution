@@ -37,11 +37,16 @@ export default function ProtectedRoute({ children, allowedRole }: Props) {
         await api.get('/auth/user/me');
         // Success - user exists and token is valid
         setIsVerifying(false);
-      } catch (err) {
+      } catch (err: any) {
         // 401: Invalid Token, 404: User Deleted
-        console.error("Session invalid:", err);
-        clearAuth();
-        router.replace("/login");
+        if (err.response && (err.response.status === 401 || err.response.status === 403 || err.response.status === 404)) {
+            console.error("Session invalid:", err);
+            clearAuth();
+            router.replace("/login");
+        } else {
+            console.warn("Network error during session verification, preserving session:", err);
+            setIsVerifying(false);
+        }
       }
     };
 

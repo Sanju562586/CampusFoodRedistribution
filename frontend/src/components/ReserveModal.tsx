@@ -18,7 +18,7 @@ type Props = {
     dining_hall: string;
     expiry_time: string;
     allergens: string[];
-    image_url?: string;
+    image_url?: string | null;
   };
 };
 
@@ -34,8 +34,9 @@ export default function ReserveModal({ open, onClose, food }: Props) {
         quantity: Number(quantity),
       });
       setStatus("success");
-    } catch (err: any) {
-      alert(err.response?.data?.message || "Reservation failed");
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      alert(error.response?.data?.message || "Reservation failed");
       setStatus("confirm");
     }
   };

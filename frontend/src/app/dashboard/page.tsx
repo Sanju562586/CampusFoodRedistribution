@@ -372,7 +372,7 @@ function DashboardContent() {
             <User className="w-5 h-5 text-[#1a5c2e]" />
           </button>
         </div>
-        <div className="p-5 lg:p-8 max-w-3xl mx-auto">
+        <div className="p-5 lg:p-8 w-full max-w-screen-2xl mx-auto min-h-[calc(100vh-80px)] flex flex-col">
           <ProfileTab user={userInfo || {}} onUpdate={fetchData} />
         </div>
       </motion.div>

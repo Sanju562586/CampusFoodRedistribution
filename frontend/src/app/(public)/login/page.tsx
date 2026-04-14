@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { saveAuth } from "@/lib/auth";
+import { saveAuth, getAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Github, Twitter, Facebook, Eye, EyeOff } from "lucide-react";
 import api from "@/lib/axios"; // Fixed import
@@ -48,6 +48,15 @@ export default function LoginPage() {
       setRole(roleParam);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const auth = getAuth();
+    if (auth?.token) {
+      if (auth.role === "admin") router.replace("/admin");
+      else if (auth.role === "donor") router.replace("/donor");
+      else router.replace("/dashboard");
+    }
+  }, [router]);
 
   const handleSubmit = async () => {
     setIsLoading(true);

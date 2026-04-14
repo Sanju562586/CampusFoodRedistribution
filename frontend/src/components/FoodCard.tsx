@@ -85,7 +85,7 @@ export default function FoodCard({ food }: { food: Food }) {
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
-                  Delicious meal available. Don't miss out!
+                  Delicious meal available. Don&apos;t miss out!
                 </p>
               </div>
             </div>

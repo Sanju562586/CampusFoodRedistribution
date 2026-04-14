@@ -111,8 +111,8 @@ export default function FoodWastageSection() {
                     Why It Matters
                 </h2>
                 <p className="text-lg text-white/50 max-w-2xl mx-auto">
-                    Food waste isn't just an ethical issue—it's an environmental crisis.
-                    Here's how we're making a difference.
+                    Food waste isn&apos;t just an ethical issue—it&apos;s an environmental crisis.
+                    Here&apos;s how we&apos;re making a difference.
                 </p>
             </motion.div>
 

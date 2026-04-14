@@ -35,8 +35,9 @@ export default function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordM
         try {
             await api.post("/auth/forgot-password", { email });
             setStep("otp");
-        } catch (err: any) {
-            alert(err.response?.data?.message || "Failed to send OTP");
+        } catch (err: unknown) {
+            const error = err as { response?: { data?: { message?: string } } };
+            alert(error.response?.data?.message || "Failed");
         } finally {
             setLoading(false);
         }

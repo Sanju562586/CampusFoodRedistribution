@@ -306,40 +306,6 @@ export default function AdminPage() {
   // Total reservations across all food
   const totalReservations = food.reduce((acc, f) => acc + (f.Reservations?.length || 0), 0);
 
-  // ── Sidebar Item ──────────────────────────────────────────
-  const SidebarItem = ({ id, label, icon: Icon }: { id: string; label: string; icon: any }) => (
-    <div className="relative px-3 mb-0.5">
-      <AnimatePresence>
-        {activeTab === id && (
-          <motion.div
-            layoutId="admin-sidebar-active-pill"
-            className="absolute inset-0 glass-nav-active rounded-xl"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          />
-        )}
-      </AnimatePresence>
-      <button
-        onClick={() => {
-          setActiveTab(id as ActiveTab);
-          if (id === "food") {
-            setFoodCategoryView("categories");
-            setSelectedEntity(null);
-          }
-        }}
-        className={`group relative w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150 rounded-xl z-10 ${activeTab === id ? "text-[#1a5c2e] dark:text-emerald-400 font-semibold" : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-[#e5f5e9] dark:hover:bg-white/10"
-          }`}
-      >
-        <motion.div whileHover={{ scale: 1.15 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
-          <Icon className={`size-4 flex-shrink-0 transition-colors ${activeTab === id ? "text-[#1a5c2e]" : "text-gray-400 group-hover:text-gray-600"}`} />
-        </motion.div>
-        {label}
-      </button>
-    </div>
-  );
-
   // ── Status badge helper ───────────────────────────────────
   const reservationStatusBadge = (status: string) => {
     if (status === "picked_up")
@@ -378,16 +344,54 @@ export default function AdminPage() {
           </div>
 
           <nav className="flex-1 flex flex-col w-full">
-            <SidebarItem id="overview" label="Dashboard" icon={LayoutDashboard} />
-            <SidebarItem id="food" label="Food Oversight" icon={HeartHandshake} />
-            <SidebarItem id="users" label="Partners" icon={Users} />
-            <SidebarItem id="logistics" label="Logistics" icon={Truck} />
-            <SidebarItem id="analytics" label="Analytics" icon={TrendingUp} />
-            <div className="mt-4 mb-2 px-6">
-              <div className="h-px w-full bg-[#d4edda] dark:bg-white/10" />
-            </div>
-            <SidebarItem id="logs" label="Activity Logs" icon={Terminal} />
-            <SidebarItem id="godmode" label="God Mode" icon={Shield} />
+            {([
+              { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+              { id: "food", label: "Food Oversight", icon: HeartHandshake },
+              { id: "users", label: "Partners", icon: Users },
+              { id: "logistics", label: "Logistics", icon: Truck },
+              { id: "analytics", label: "Analytics", icon: TrendingUp },
+              { divider: true },
+              { id: "logs", label: "Activity Logs", icon: Terminal },
+              { id: "godmode", label: "God Mode", icon: Shield },
+            ] as const).map((item: any, idx: number) => {
+              if (item.divider) return <div key={`div-${idx}`} className="mt-4 mb-2 px-6"><div className="h-px w-full bg-[#d4edda] dark:bg-white/10" /></div>;
+              
+              const id = item.id;
+              const Icon = item.icon;
+              return (
+                <div key={id} className="relative px-3 mb-0.5">
+                  <AnimatePresence>
+                    {activeTab === id && (
+                      <motion.div
+                        layoutId="admin-sidebar-active-pill"
+                        className="absolute inset-0 glass-nav-active rounded-xl"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                  </AnimatePresence>
+                  <button
+                    onClick={() => {
+                      setActiveTab(id as ActiveTab);
+                      if (id === "food") {
+                        setFoodCategoryView("categories");
+                        setSelectedEntity(null);
+                      }
+                    }}
+                    className={`group relative w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150 rounded-xl z-10 ${
+                      activeTab === id ? "text-[#1a5c2e] dark:text-emerald-400 font-semibold" : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-[#e5f5e9] dark:hover:bg-white/10"
+                    }`}
+                  >
+                    <motion.div whileHover={{ scale: 1.15 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
+                      <Icon className={`size-4 flex-shrink-0 transition-colors ${activeTab === id ? "text-[#1a5c2e]" : "text-gray-400 group-hover:text-gray-600"}`} />
+                    </motion.div>
+                    {item.label}
+                  </button>
+                </div>
+              );
+            })}
           </nav>
 
           <div className="px-4 pb-6 mt-auto">
@@ -786,13 +790,13 @@ export default function AdminPage() {
                 {/* Search + Filter Bar */}
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-transparent pt-4">
                   <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:flex-none">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <div className="relative flex-1 sm:flex-none w-full sm:w-64">
+                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                       <Input
                         placeholder="Search by name or email…"
                         value={userSearch}
                         onChange={(e) => { setUserSearch(e.target.value); setUserPage(0); }}
-                        className="pl-9 h-10 w-full sm:w-64 rounded-full bg-card border-border/50"
+                        className="pl-10 h-11 w-full rounded-[1.25rem] bg-card/50 backdrop-blur-md border border-border/50 hover:bg-card/80 focus-visible:ring-2 focus-visible:ring-[#1a5c2e]/50 transition-all shadow-sm"
                       />
                     </div>
                     <div className="flex p-1 bg-muted/50 rounded-full shadow-sm">
@@ -1231,32 +1235,49 @@ export default function AdminPage() {
                   if (!selectedGroup) return null;
 
                   return (
-                    <div className="bg-card/30 p-6 rounded-2xl border border-border">
-                      <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                        <span className="bg-blue-500/20 text-blue-400 p-2 rounded-lg"><Users size={24} /></span>
-                        {selectedGroup.name}
-                        <span className="text-sm font-normal text-muted-foreground ml-2">({selectedGroup.email})</span>
-                        <Badge variant="outline" className="ml-2">{selectedGroup.reservations.length} orders</Badge>
-                      </h3>
-                      <div className="rounded-2xl border border-border overflow-x-auto bg-card">
+                    <div className="glass-panel p-6 rounded-[2rem]">
+                      <div className="flex items-center gap-4 mb-8">
+                        <div className="bg-blue-500/10 dark:bg-blue-900/30 p-3 rounded-2xl">
+                          <Users className="size-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-black text-foreground tracking-tight m-0">{selectedGroup.name}</h3>
+                          <p className="text-sm font-bold text-muted-foreground flex items-center gap-2">
+                            {selectedGroup.email} <span className="opacity-40">•</span> <Badge variant="secondary" className="bg-white/50 dark:bg-white/5">{selectedGroup.reservations.length} orders</Badge>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-[1.5rem] border border-border/50 overflow-hidden bg-card/40 backdrop-blur-md">
                         <table className="w-full text-left min-w-[600px]">
-                          <thead className="bg-muted text-muted-foreground text-xs uppercase font-semibold">
+                          <thead className="bg-muted/50 text-muted-foreground text-[10px] uppercase font-black tracking-widest border-b border-border/50">
                             <tr>
-                              <th className="p-4">Food Claimed</th>
-                              <th className="p-4">Quantity</th>
-                              <th className="p-4">Status & Time</th>
+                              <th className="p-5 px-6">Food Claimed</th>
+                              <th className="p-5 px-4 text-center">Quantity</th>
+                              <th className="p-5 px-6 text-right">Status & Time</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-border">
+                          <tbody className="divide-y divide-border/30">
                             {selectedGroup.reservations
                               .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                               .map((r: any) => (
-                                <tr key={r.id} className="hover:bg-muted/50 transition-colors">
-                                  <td className="p-4 text-foreground font-medium">{r.foodName}</td>
-                                  <td className="p-4 font-mono text-muted-foreground">{r.quantity}</td>
-                                  <td className="p-4">
-                                    <div className="text-sm font-medium capitalize mb-1">{r.status.replace("_", " ")}</div>
-                                    <div className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleString()}</div>
+                                <tr key={r.id} className="hover:bg-muted/20 transition-colors">
+                                  <td className="p-5 px-6">
+                                    <span className="font-bold text-foreground text-sm">{r.foodName}</span>
+                                    <div className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase mt-1 flex items-center gap-1.5">
+                                      <Ticket className="size-3" /> {r.reservation_code}
+                                    </div>
+                                  </td>
+                                  <td className="p-5 px-4 font-mono text-foreground font-bold text-center">
+                                    {r.quantity}
+                                    <span className="text-xs font-semibold text-muted-foreground ml-1">kg</span>
+                                  </td>
+                                  <td className="p-5 px-6 text-right">
+                                    <div className="flex flex-col items-end gap-1.5">
+                                      {reservationStatusBadge(r.status)}
+                                      <div className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
+                                        {new Date(r.createdAt).toLocaleDateString()} {new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </div>
+                                    </div>
                                   </td>
                                 </tr>
                               ))}
@@ -1309,16 +1330,16 @@ export default function AdminPage() {
                     { label: "Pending", value: food.flatMap((f) => f.Reservations || []).filter((r: any) => r.status === "reserved").length, icon: Clock, color: "text-yellow-600" },
                     { label: "Active Listings", value: stats.activeFoodCount, icon: Package, color: "text-emerald-600" },
                   ].map(({ label, value, icon: Icon, color }) => (
-                    <Card key={label} className="p-6 rounded-2xl bg-card border-none shadow-sm">
+                    <div key={label} className="glass-panel p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                       <Icon className={`size-5 ${color} mb-3`} />
                       <p className="text-2xl font-black text-foreground">{value}</p>
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">{label}</p>
-                    </Card>
+                    </div>
                   ))}
                 </div>
 
                 {/* Full Reservation Ledger */}
-                <Card className="rounded-[2rem] bg-card shadow-sm overflow-hidden border-none">
+                <div className="glass-panel rounded-[2rem] overflow-hidden">
                   <div className="overflow-x-auto w-full">
                     <table className="w-full text-left border-collapse min-w-[900px]">
                       <thead>
@@ -1361,7 +1382,7 @@ export default function AdminPage() {
                       </tbody>
                     </table>
                   </div>
-                </Card>
+                </div>
               </div>
             )}
 
@@ -1598,19 +1619,19 @@ export default function AdminPage() {
                     { label: "Active Listings", value: stats.activeFoodCount, icon: Package, color: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" },
                     { label: "All Reservations", value: totalReservations, icon: ClipboardCheck, color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" },
                   ].map(({ label, value, icon: Icon, color }) => (
-                    <Card key={label} className="p-6 rounded-2xl bg-card border-none shadow-sm">
+                    <div key={label} className="glass-panel p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                       <div className={`size-10 rounded-xl ${color} flex items-center justify-center mb-4`}>
                         <Icon className="size-5" />
                       </div>
                       <p className="text-3xl font-black text-foreground">{value}</p>
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">{label}</p>
-                    </Card>
+                    </div>
                   ))}
                 </div>
 
                 {/* AI Summary */}
                 {analytics && (
-                  <Card className="p-8 bg-gradient-to-br from-[#2A5C3B] to-[#1a4026] border-none rounded-3xl shadow-xl text-white">
+                  <div className="glass-panel p-8 bg-gradient-to-br from-[#2A5C3B] to-[#1a4026] border-none rounded-[2rem] shadow-xl text-white">
                     <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-4">AI Engine Report</p>
                     <h3 className="text-3xl font-black mb-2">{analytics.analysis}</h3>
                     <p className="text-white/80 text-lg leading-relaxed mb-6">{analytics.details}</p>
@@ -1630,7 +1651,7 @@ export default function AdminPage() {
                     {analytics.suggestionType !== "NONE" && (
                       <div className="mt-6">
                         <Button
-                          className="bg-white text-emerald-900 hover:bg-white/90 font-bold rounded-full h-12 px-6"
+                          className="bg-white text-emerald-900 hover:bg-white/90 font-bold rounded-full h-12 px-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
                           onClick={handleApplySuggestion}
                           disabled={applying}
                         >
@@ -1639,39 +1660,39 @@ export default function AdminPage() {
                         </Button>
                       </div>
                     )}
-                  </Card>
+                  </div>
                 )}
 
                 {/* Danger zone */}
-                <Card className="p-8 border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/10 rounded-3xl">
+                <div className="glass-panel p-8 border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/10 rounded-[2rem]">
                   <div className="flex items-center gap-3 mb-4">
                     <ShieldAlert className="size-6 text-red-500" />
                     <h3 className="text-xl font-bold text-red-600 dark:text-red-400">Admin Actions</h3>
                   </div>
-                  <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-6">These actions affect live data. Proceed with caution.</p>
+                  <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-6 font-bold">These actions affect live data. Proceed with caution.</p>
                   <div className="flex gap-4 flex-wrap">
                     <Button
                       variant="outline"
-                      className="border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/30 font-bold rounded-full"
+                      className="border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/30 font-bold rounded-full h-11 px-6 shadow-sm"
                       onClick={() => exportToCSV(users.filter((u) => u.role !== "admin"), "all_users.csv")}
                     >
                       <Download className="mr-2 size-4" /> Export All Users
                     </Button>
                     <Button
                       variant="outline"
-                      className="border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/30 font-bold rounded-full"
+                      className="border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/30 font-bold rounded-full h-11 px-6 shadow-sm"
                       onClick={() => exportToCSV(food, "all_food.csv")}
                     >
                       <Download className="mr-2 size-4" /> Export All Food Data
                     </Button>
                     <Button
-                      className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-full border-none"
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-full border-none h-11 px-6 shadow-[0_8px_30px_rgb(220,38,38,0.2)] dark:shadow-none"
                       onClick={() => { clearAuth(); window.location.href = "/login"; }}
                     >
-                      <LogOut className="mr-2 size-4" /> Exit Admin Mode
+                      <LogOut className="mr-2 size-4" /> Sign Out
                     </Button>
                   </div>
-                </Card>
+                </div>
               </div>
             )}
             {/* ══════════════════════════════════════════════════════

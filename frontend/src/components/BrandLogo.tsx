@@ -1,5 +1,3 @@
-import { useId } from "react";
-
 import { cn } from "@/lib/utils";
 
 type BrandTone = "dark" | "light";
@@ -54,11 +52,10 @@ const wordmarkClasses: Record<
 };
 
 export function BrandMark({ className, size = 40 }: BrandMarkProps) {
-  const gradientId = useId().replace(/:/g, "");
-  const cycleTopId = `${gradientId}-cycle-top`;
-  const cycleBottomId = `${gradientId}-cycle-bottom`;
-  const badgeId = `${gradientId}-badge`;
-  const leafId = `${gradientId}-leaf`;
+  const cycleTopId = "brand-logo-cycle-top";
+  const cycleBottomId = "brand-logo-cycle-bottom";
+  const badgeId = "brand-logo-badge";
+  const leafId = "brand-logo-leaf";
 
   return (
     <svg

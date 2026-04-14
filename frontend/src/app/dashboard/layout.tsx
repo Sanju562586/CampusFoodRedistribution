@@ -3,6 +3,7 @@
 import { ThemeProvider } from "@/components/theme-provider";
 import StudentSidebar from "@/components/StudentSidebar";
 import StudentBottomNav from "@/components/StudentBottomNav";
+import { Suspense } from "react";
 
 export default function DashboardLayout({
   children,
@@ -19,7 +20,9 @@ export default function DashboardLayout({
     >
       <div className="min-h-screen bg-[#eef8ee] dark:bg-transparent">
         {/* Desktop sidebar — fixed, 224px wide */}
-        <StudentSidebar />
+        <Suspense fallback={<div className="hidden lg:flex w-56 h-screen border-r border-white/10" />}>
+          <StudentSidebar />
+        </Suspense>
 
         {/* Main content — offset by sidebar width on lg+ */}
         <div className="lg:pl-56 min-h-screen pb-20 lg:pb-0">

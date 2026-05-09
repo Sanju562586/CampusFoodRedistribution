@@ -47,18 +47,39 @@ const pusher = new Pusher({
   useTLS: true,
 });
 
-// ─────────────────────────────────────────────
-// CORS — specific trusted origins only
-// (wildcard is insecure and disables credentials)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
+// CORS — allow configured origin + all Vercel preview/production URLs
+// Vercel generates multiple URLs per deployment (production + branch previews)
+// so we match any *.vercel.app subdomain for this project via regex.
+// ─────────────────────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  // Local development
+  "http://localhost:3000",
+  "http://localhost:3001",
+  // Explicitly configured production URL (set FRONTEND_URL in Render env vars)
+  process.env.FRONTEND_URL,
+].filter(Boolean); // remove undefined if FRONTEND_URL not set
+
 app.use(
   cors({
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      // Add your production Vercel frontend URL here:
-      // "https://campus-food-frontend.vercel.app",
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    origin: (incomingOrigin, callback) => {
+      // Allow requests with no origin (server-to-server, curl, Postman)
+      if (!incomingOrigin) return callback(null, true);
+
+      // Allow any Vercel preview/production URL for this project
+      const isVercelPreview = /^https:\/\/campus-food-redistribution[\w-]*\.vercel\.app$/.test(incomingOrigin);
+      // Allow any Vercel URL belonging to the owner (sanju562586s-projects)
+      const isVercelOwner  = /^https:\/\/[\w-]+sanju562586s-projects\.vercel\.app$/.test(incomingOrigin);
+
+      if (isVercelPreview || isVercelOwner || ALLOWED_ORIGINS.includes(incomingOrigin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS] Blocked origin: ${incomingOrigin}`);
+      callback(new Error(`CORS: origin '${incomingOrigin}' is not allowed`));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );

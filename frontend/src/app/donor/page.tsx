@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/axios";
 import { getAuth, clearAuth } from "@/lib/auth";
@@ -34,7 +34,23 @@ function downloadCSV(content: string, filename: string) {
 
 type DonorTab = "post" | "pickup" | "history" | "analytics";
 
+// ── Suspense shell — required because useSearchParams() needs CSR bailout ────
 export default function DonorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-4 border-[#1a5c2e]/30 border-t-[#1a5c2e] animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading dashboard…</p>
+        </div>
+      </div>
+    }>
+      <DonorContent />
+    </Suspense>
+  );
+}
+
+function DonorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 

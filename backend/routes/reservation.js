@@ -7,6 +7,10 @@ const { Client } = require("@upstash/qstash");
 const activityLog = require("../lib/activityLog");
 const userBehavior = require("../lib/userBehavior");
 
+const { Redis } = require("@upstash/redis");
+const { foodCache } = require("../lib/localCache");
+
+const redis = Redis.fromEnv();
 const router = express.Router();
 
 /**
@@ -30,45 +34,40 @@ router.post(
         const payload = { foodId, quantity, userId, code };
 
         try {
-            // Check if QStash is configured
-            if (!process.env.QSTASH_TOKEN || process.env.QSTASH_TOKEN === 'add_your_token_here') {
-                console.warn("⚠️ QSTASH_TOKEN is missing. Bypassing queue and executing direct DB write.");
+            // \u2500\u2500 QStash routing decision (same logic as food.js) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+            const appUrl = process.env.APP_URL || "";
+            const isQStashReady =
+                process.env.QSTASH_TOKEN &&
+                process.env.QSTASH_TOKEN !== "add_your_token_here" &&
+                appUrl &&
+                !appUrl.includes("localhost") &&
+                !appUrl.includes("127.0.0.1") &&
+                !appUrl.includes("your-backend") &&   // catch un-edited placeholder
+                appUrl.startsWith("https://");         // must be a real HTTPS endpoint
+
+            if (!isQStashReady) {
+                console.log("[reservation/create] Using direct DB write (QStash not fully configured).");
                 return await directReservationCreate(payload, req.pusher, res);
             }
 
-            // Publish to QStash to protect database from write spikes
             const qstashClient = new Client({ token: process.env.QSTASH_TOKEN });
-            const targetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/api/reservation/worker-create`;
+            const targetUrl = `${appUrl}/api/reservation/worker-create`;
 
-            // QStash cannot reach loopback addresses (localhost/127.0.0.1)
-            if (targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) {
-                console.warn("⚠️ Localhost detected in target URL. QStash cannot reach local networks. Executing direct DB write.");
-                return await directReservationCreate(payload, req.pusher, res);
-            }
-            
-            await qstashClient.publishJSON({
-                url: targetUrl,
-                body: payload,
-            });
+            await qstashClient.publishJSON({ url: targetUrl, body: payload });
 
             // Return mock reservation object instantly (< 50ms)
             const qrCodeUrl = await QRCode.toDataURL(code);
-            activityLog.push({ type: "reservation", level: "info", message: `Reservation queued via QStash`, actor: `User #${userId}`, role: "student", detail: `Food #${foodId} · Qty: ${quantity} · Code: ${code}` });
+            activityLog.push({ type: "reservation", level: "info", message: `Reservation queued via QStash`, actor: `User #${userId}`, role: "student", detail: `Food #${foodId} \u00b7 Qty: ${quantity} \u00b7 Code: ${code}` });
             res.status(202).json({
                 message: "Reservation queued successfully",
-                reservation: {
-                    userId,
-                    foodId,
-                    quantity,
-                    status: "processing_queue",
-                    reservation_code: code,
-                },
+                reservation: { userId, foodId, quantity, status: "processing_queue", reservation_code: code },
                 qrCodeUrl,
             });
         } catch (err) {
-            console.error("QStash Publish Error:", err);
-            activityLog.push({ type: "reservation", level: "error", message: "QStash publish failed for reservation", actor: `User #${userId}`, role: "student", detail: err.message });
-            res.status(500).json({ message: "Failed to queue reservation" });
+            console.error("QStash Publish Error:", err.message);
+            // QStash failed \u2014 fall back to direct write so the reservation is never lost
+            console.warn("[reservation/create] QStash failed \u2014 falling back to direct DB write.");
+            return await directReservationCreate(payload, req.pusher, res);
         }
     }
 );
@@ -102,7 +101,29 @@ async function directReservationCreate({ foodId, quantity, userId, code }, pushe
         await User.increment("points", { by: 10, where: { id: userId }, transaction: t });
         await t.commit();
 
-        if (pusherClient) pusherClient.trigger("food-channel", "food_update", { foodId, quantity: food.quantity });
+        const pusher = pusherClient;
+        if (pusher) {
+          // Broadcast quantity change to all connected students
+          pusher.trigger("food-channel", "food_update", { foodId, quantity: food.quantity }).catch?.(() => {});
+          // Notify THIS student: points earned + reservation confirmed
+          const updatedUser = await User.findByPk(userId, { attributes: ["points"] });
+          pusher.trigger(`user-${userId}`, "reservation_confirmed", {
+            foodId,
+            foodName: food.name,
+            quantity,
+            code,
+            newPoints: updatedUser?.points ?? 0,
+            timestamp: new Date().toISOString(),
+          }).catch?.(() => {});
+          // If food is now 0, signal all clients to remove it from the grid
+          if (food.quantity <= 0) {
+            pusher.trigger("food-channel", "food_removed", { foodId }).catch?.(() => {});
+          }
+        }
+
+        // Invalidate BOTH cache layers so quantity changes appear on next poll
+        foodCache.del("availableFood");
+        await redis.del("availableFood").catch(() => {});
 
         activityLog.push({
           type: "reservation",
@@ -113,9 +134,9 @@ async function directReservationCreate({ foodId, quantity, userId, code }, pushe
           detail: `Code: ${code} · Qty: ${quantity}`,
         });
 
-        // 🧠 Feed the behavioral brain — record this interaction for smarter future recs
+        // 🧠 Feed the behavioral brain — strong signal: user reserved this food
         const user = await User.findByPk(userId, { attributes: ["dietary_preferences"] });
-        userBehavior.recordInteraction(userId, food, user?.dietary_preferences || "Any").catch(() => {});
+        userBehavior.recordInteraction(userId, food, user?.dietary_preferences || "Any", "reserved").catch(() => {});
 
         const qrCodeUrl = await QRCode.toDataURL(code);
         if (res) {
@@ -229,12 +250,27 @@ router.post(
               detail: `Code: ${reservation_code}`,
             });
 
-            // 🧠 Reinforce the behavioral signal on actual pickup (stronger signal than reserve)
+            // 🧠 Strongest signal: user actually picked up the food
             userBehavior.recordInteraction(
               reservation.userId,
               reservation.Food,
-              reservation.User?.dietary_preferences || "Any"
+              reservation.User?.dietary_preferences || "Any",
+              "picked_up"
             ).catch(() => {});
+
+            // Real-time: notify food-channel + the student who was picked up
+            const pusher = req.pusher;
+            if (pusher) {
+              pusher.trigger("food-channel", "pickup_confirmed", {
+                foodId: reservation.foodId,
+                reservationId: reservation.id,
+              }).catch?.(() => {});
+              pusher.trigger(`user-${reservation.userId}`, "pickup_confirmed", {
+                reservationId: reservation.id,
+                foodName: reservation.Food?.name || "Food item",
+                timestamp: new Date().toISOString(),
+              }).catch?.(() => {});
+            }
 
             res.json({
                 message: "Pickup confirmed",

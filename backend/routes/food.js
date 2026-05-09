@@ -1,6 +1,6 @@
 const express = require("express");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
-const { Food } = require("../models");
+const { Food, User } = require("../models");
 const { Op } = require("sequelize");
 const { Redis } = require("@upstash/redis");
 const { foodCache } = require("../lib/localCache");
@@ -13,6 +13,60 @@ const router = express.Router();
 const { Client, Receiver } = require("@upstash/qstash");
 const activityLog = require("../lib/activityLog");
 const userBehavior = require("../lib/userBehavior");
+
+// ─────────────────────────────────────────────
+// Email helper — Brevo HTTP API (same pattern as auth.js)
+// ─────────────────────────────────────────────
+async function sendEmailNotification(to, name, food, matchScore = 0) {
+  if (!process.env.BREVO_API_KEY) {
+    console.log(`[DEV EMAIL] Smart notif (score:${matchScore}) → ${to} for food: ${food.name}`);
+    return false;
+  }
+  const expiryStr = new Date(food.expiry_time).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  const scoreLabel = matchScore >= 70 ? "🔥 Perfect Match" : matchScore >= 40 ? "✅ Great Match" : "📍 New Nearby";
+  const scoreBgColor = matchScore >= 70 ? "#d32f2f" : matchScore >= 40 ? "#388e3c" : "#1565c0";
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #eee;border-radius:10px;background:#f9f9f9;">
+      <h2 style="color:#388e3c;text-align:center;">🍱 Food Match for ${name}!</h2>
+      <div style="text-align:center;margin-bottom:12px;">
+        <span style="background:${scoreBgColor};color:#fff;font-size:12px;font-weight:bold;padding:4px 12px;border-radius:12px;">${scoreLabel} · ${matchScore}% match</span>
+      </div>
+      <p style="color:#555;text-align:center;">A food item matching your preferences is now available:</p>
+      <div style="background:#fff;padding:20px;border-radius:8px;margin:16px 0;box-shadow:0 2px 4px rgba(0,0,0,0.08);">
+        <h3 style="margin:0 0 8px;color:#222;">${food.name}</h3>
+        <p style="margin:4px 0;color:#555;"><strong>📍 Location:</strong> ${food.dining_hall || food.location}</p>
+        ${food.landmark ? `<p style="margin:4px 0;color:#555;"><strong>🏢 Landmark:</strong> ${food.landmark}</p>` : ""}
+        <p style="margin:4px 0;color:#555;"><strong>📦 Available:</strong> ${food.quantity} servings</p>
+        <p style="margin:4px 0;color:#555;"><strong>💰 Price:</strong> ₹${food.price || 0}</p>
+        <p style="margin:4px 0;color:#e53935;"><strong>⏰ Expires at:</strong> ${expiryStr}</p>
+      </div>
+      <div style="text-align:center;margin-top:20px;">
+        <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/dashboard" style="background:#388e3c;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;">Reserve Now →</a>
+      </div>
+      <p style="color:#aaa;font-size:11px;text-align:center;margin-top:24px;">You're receiving this because your preferences match this item · <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/dashboard" style="color:#aaa;">Manage preferences</a></p>
+    </div>`;
+  try {
+    const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "accept": "application/json", "content-type": "application/json", "api-key": process.env.BREVO_API_KEY },
+      body: JSON.stringify({
+        sender: { name: "CampusFood Alerts", email: process.env.EMAIL_USER || "noreplyfr213@gmail.com" },
+        to: [{ email: to, name }],
+        subject: `${scoreLabel}: ${food.name} near ${food.dining_hall || food.location}`,
+        htmlContent: html,
+      }),
+    });
+    if (!resp.ok) {
+      const d = await resp.json().catch(() => ({}));
+      throw new Error(JSON.stringify(d));
+    }
+    console.log(`[SMART NOTIF EMAIL] Sent to ${to} for "${food.name}"`);
+    return true;
+  } catch (e) {
+    console.error("[SMART NOTIF EMAIL ERROR]", e.message);
+    return false;
+  }
+}
 
 // ─────────────────────────────────────────────
 // In-flight promise coalescing for /available
@@ -74,6 +128,7 @@ router.post(
     const {
       name, quantity, expiry_time, dining_hall,
       allergens, location, landmark, image_url, price,
+      latitude, longitude,
     } = req.body;
 
     if (!name)
@@ -113,29 +168,33 @@ router.post(
         image_url: finalImageUrl,
         price: price || 0,
         status: "available",
+        latitude: latitude != null ? parseFloat(latitude) : null,
+        longitude: longitude != null ? parseFloat(longitude) : null,
       };
 
-      // Check if QStash is properly configured
-      if (
-        !process.env.QSTASH_TOKEN ||
-        process.env.QSTASH_TOKEN === "add_your_token_here"
-      ) {
-        console.warn(
-          "⚠️ QSTASH_TOKEN missing — executing direct DB write (not recommended for production)."
-        );
+      // ── QStash routing decision ──────────────────────────────────────────
+      // QStash is only used when BOTH conditions are true:
+      //   1. A real QSTASH_TOKEN is present (not the placeholder)
+      //   2. APP_URL is set to a real publicly-reachable URL (not localhost or placeholder)
+      // Any other combination falls back to a direct synchronous DB write.
+
+      const appUrl = process.env.APP_URL || "";
+      const isQStashReady =
+        process.env.QSTASH_TOKEN &&
+        process.env.QSTASH_TOKEN !== "add_your_token_here" &&
+        appUrl &&
+        !appUrl.includes("localhost") &&
+        !appUrl.includes("127.0.0.1") &&
+        !appUrl.includes("your-backend") &&   // catch un-edited placeholder
+        appUrl.startsWith("https://");         // must be a real HTTPS endpoint
+
+      if (!isQStashReady) {
+        console.log("[food/create] Using direct DB write (QStash not fully configured).");
         return await directFoodCreate(payload, req.pusher, res);
       }
 
       try {
-        // Publish to QStash — decouples DB write from user response
-        const targetUrl = `${process.env.APP_URL || "http://localhost:5000"}/api/food/worker-create`;
-        
-        // QStash is a cloud service and cannot reach localhost.
-        if (targetUrl.includes("localhost") || targetUrl.includes("127.0.0.1")) {
-          console.warn("⚠️ Localhost detected in target URL. QStash cannot reach local networks. Executing direct DB write.");
-          return await directFoodCreate(payload, req.pusher, res);
-        }
-
+        const targetUrl = `${appUrl}/api/food/worker-create`;
         const qstashClient = new Client({ token: process.env.QSTASH_TOKEN });
         await qstashClient.publishJSON({ url: targetUrl, body: payload });
 
@@ -144,9 +203,10 @@ router.post(
         // Return 202 instantly — user doesn't wait for DB
         res.status(202).json({ message: "Food creation queued successfully" });
       } catch (qstashErr) {
-        console.error("QStash Publish Error:", qstashErr);
-        activityLog.push({ type: "food_create", level: "error", message: "QStash publish failed for food creation", actor: `Donor #${req.user.id}`, role: "donor", detail: qstashErr.message });
-        res.status(500).json({ message: "Failed to queue food creation" });
+        console.error("QStash Publish Error:", qstashErr.message);
+        // QStash failed — fall back to direct write so the donor's item is never lost
+        console.warn("[food/create] QStash failed — falling back to direct DB write.");
+        return await directFoodCreate(payload, req.pusher, res);
       }
     } catch (err) {
       console.error("Food Create Error:", err);
@@ -192,8 +252,11 @@ async function directFoodCreate(payload, pusherClient, res) {
       detail: `${foodJson.quantity} units @ ${foodJson.dining_hall || foodJson.location}`,
     });
 
-    // ✅ Targeted invalidation only — DO NOT flushall()
-    // flushall() would destroy session cache, leaderboard cache, etc.
+    // Invalidate BOTH cache layers atomically:
+    // L1 (in-process NodeCache) must be cleared first so the NEXT request
+    // in this worker hits DB — not the stale in-RAM snapshot.
+    foodCache.del("availableFood");
+    foodCache.del("stats");
     await redis.del("availableFood", "stats");
 
     if (res) return res.status(201).json(food);
@@ -205,55 +268,85 @@ async function directFoodCreate(payload, pusherClient, res) {
 
 // ─────────────────────────────────────────────
 // Smart Notification Engine
-// Checks behavior preference indexes and fires
-// targeted Pusher events to relevant students
+// Scores each student 0–100 against a newly posted food item.
+// Pusher bell  → score ≥ 30 (diet/location match — broad reach)
+// Email alert  → score ≥ 70 (very high match ONLY — behaviorally learned)
 // ─────────────────────────────────────────────
 async function _sendSmartNotifications(pusherClient, food) {
-  if (!pusherClient) return;
+  const EMAIL_THRESHOLD  = 70;
+  const PUSHER_THRESHOLD = 30;
 
-  // Infer diet from allergens (simple heuristic; extend as needed)
-  const allergens = Array.isArray(food.allergens) ? food.allergens : [];
-  const hasNonVegAllergens = allergens.some(a =>
-    ["meat", "chicken", "fish", "egg", "pork", "beef"].includes(a.toLowerCase())
-  );
-  const diet = hasNonVegAllergens ? "Non-Veg" : "Any";
+  const allStudents = await User.findAll({
+    where: { role: "student" },
+    attributes: ["id", "email", "name", "dietary_preferences", "allergens"],
+  }).catch(() => []);
 
-  const interestedUserIds = await userBehavior.getInterestedUsers(food, diet);
+  if (allStudents.length === 0) return;
 
-  if (!interestedUserIds || interestedUserIds.length === 0) return;
+  let pusherCount = 0;
+  let emailCount  = 0;
 
-  const notification = {
-    id:        `notif_${Date.now()}`,
-    type:      "food_match",
-    title:     "🍱 New Food Match!",
-    message:   `${food.name} is now available at ${food.dining_hall || food.location}`,
-    foodId:    food.id,
-    foodName:  food.name,
-    hall:      food.dining_hall || food.location,
-    quantity:  food.quantity,
-    expiresAt: food.expiry_time,
-    timestamp: new Date().toISOString(),
-  };
+  for (const u of allStudents) {
+    const profile = await userBehavior.getUserProfile(u.id).catch(() => ({
+      topHalls: [], topKeywords: [], topPriceRange: "any", preferredDiet: null, totalInteractions: 0,
+    }));
 
-  // Batch Pusher triggers — max 10 per batch to avoid API limits
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < interestedUserIds.length; i += BATCH_SIZE) {
-    const batch = interestedUserIds.slice(i, i + BATCH_SIZE);
-    await Promise.allSettled(
-      batch.map(uid =>
-        pusherClient.trigger(`user-${uid}`, "food_notification", notification)
-      )
-    );
+    let score = userBehavior.computeMatchScore(food, profile, {
+      dietary_preferences: u.dietary_preferences,
+      allergens: u.allergens,
+    });
+
+    // New users with no behavior yet: use diet-based baseline so they still get notified
+    if (profile.totalInteractions === 0 && score > 0) {
+      score = Math.max(score, _baselineDietScore(food, u));
+    }
+
+    if (score === 0) continue; // allergen conflict \u2014 skip entirely
+
+    const notifTitle = score >= 70 ? "\ud83d\udd25 Perfect Match!" : score >= 40 ? "\ud83c\udf71 Great Match!" : "\ud83c\udf71 New Food Available!";
+
+    if (score >= PUSHER_THRESHOLD && pusherClient) {
+      pusherClient.trigger(`user-${u.id}`, "food_notification", {
+        id:         `notif_${Date.now()}_${u.id}`,
+        type:       "food_match",
+        title:      notifTitle,
+        message:    `${food.name} is available at ${food.dining_hall || food.location}`,
+        foodId:     food.id,
+        foodName:   food.name,
+        hall:       food.dining_hall || food.location,
+        quantity:   food.quantity,
+        expiresAt:  food.expiry_time,
+        matchScore: score,
+        timestamp:  new Date().toISOString(),
+      }).catch(() => {});
+      pusherCount++;
+    }
+
+    if (score >= EMAIL_THRESHOLD) {
+      await sendEmailNotification(u.email, u.name || "Student", food, score);
+      emailCount++;
+    }
   }
 
   activityLog.push({
-    type: "ai",
-    level: "info",
+    type: "ai", level: "info",
     message: `Smart notifications sent for "${food.name}"`,
-    actor: "AI Notification Engine",
-    role: "system",
-    detail: `${interestedUserIds.length} user(s) notified · Hall: ${food.dining_hall || food.location}`,
+    actor: "AI Notification Engine", role: "system",
+    detail: `Pusher: ${pusherCount} \u00b7 Emails (score\u2265${EMAIL_THRESHOLD}): ${emailCount} \u00b7 Hall: ${food.dining_hall || food.location}`,
   });
+}
+
+function _baselineDietScore(food, user) {
+  const userDiet = (user.dietary_preferences || "").toLowerCase();
+  const foodAllergens = (() => {
+    try { return Array.isArray(food.allergens) ? food.allergens : JSON.parse(food.allergens || "[]"); }
+    catch { return []; }
+  })();
+  const isNonVeg = foodAllergens.some(a => ["meat","chicken","fish","pork","beef"].includes(a.toLowerCase()));
+  if (userDiet === "veg"    && !isNonVeg)  return 45;
+  if (userDiet === "non-veg" && isNonVeg)  return 45;
+  if (userDiet === "vegan"  && foodAllergens.length === 0) return 50;
+  return 35;
 }
 
 // ─────────────────────────────────────────────
@@ -309,7 +402,9 @@ router.post("/worker-create", async (req, res) => {
 
     activityLog.push({ type: "food_create", level: "success", message: `QStash worker created food: ${foodJson.name}`, actor: `Donor #${foodJson.donorId || "unknown"}`, role: "donor", detail: `${foodJson.quantity} units @ ${foodJson.dining_hall || foodJson.location}` });
 
-    // ✅ Targeted cache invalidation — only food-related keys
+    // Invalidate BOTH cache layers so the next request hits the DB.
+    foodCache.del("availableFood");
+    foodCache.del("stats");
     await redis.del("availableFood", "stats");
 
     res.status(200).json({ message: "Worker successfully resolved operation." });
@@ -395,7 +490,7 @@ async function _fetchAndCacheAvailableFood() {
     // Only fetch columns the frontend actually needs
     attributes: ["id", "name", "quantity", "expiry_time", "dining_hall",
                  "allergens", "location", "landmark", "image_url", "price",
-                 "status", "donorId", "createdAt"],
+                 "status", "donorId", "createdAt", "latitude", "longitude"],
   });
 
   const formattedFood = availableFood.map((f) => {
@@ -531,7 +626,9 @@ router.delete(
         detail: `Food ID: ${id}`,
       });
 
-      // Invalidate food cache after deletion
+      // Invalidate BOTH cache layers after deletion.
+      foodCache.del("availableFood");
+      foodCache.del("stats");
       await redis.del("availableFood", "stats");
 
       res.json({ message: "Food item deleted successfully" });

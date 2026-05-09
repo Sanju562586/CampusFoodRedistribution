@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/axios";
 import { getAuth, clearAuth } from "@/lib/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -9,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import LocationMapPicker from "@/components/LocationMapPicker";
 import {
   History, PlusCircle, LogOutIcon, DollarSign, ScanLine, Utensils, Hash, Clock,
   MapPin, Tag, Camera, Upload, X, ShieldCheck, Rocket, Info, HelpCircle, ChevronDown,
   TrendingUp, Trash2, Package, Download, BarChart3, Award, RefreshCw,
-  ChevronRight, AlertCircle, CheckCircle2,
+  ChevronRight, AlertCircle, CheckCircle2, Navigation,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import HistoryDetailsModal from "@/components/HistoryDetailsModal";
@@ -33,7 +35,34 @@ function downloadCSV(content: string, filename: string) {
 type DonorTab = "post" | "pickup" | "history" | "analytics";
 
 export default function DonorPage() {
-  const [activeTab, setActiveTab] = useState<DonorTab>("post");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const VALID_TABS: DonorTab[] = ["post", "pickup", "history", "analytics"];
+  const initialTab = (VALID_TABS.includes(searchParams.get("tab") as DonorTab)
+    ? searchParams.get("tab")
+    : "post") as DonorTab;
+
+  const [activeTab, setActiveTab] = useState<DonorTab>(initialTab);
+
+  // Sync tab to URL on change
+  const switchTab = useCallback((tab: DonorTab) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (tab === "post") params.delete("tab");
+    else params.set("tab", tab);
+    const query = params.toString();
+    router.replace(`/donor${query ? `?${query}` : ""}`, { scroll: false });
+  }, [router, searchParams]);
+
+  // Sync inbound URL changes (back/forward)
+  useEffect(() => {
+    const tab = searchParams.get("tab") as DonorTab | null;
+    if (tab && VALID_TABS.includes(tab)) setActiveTab(tab);
+    else setActiveTab("post");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const [user, setUser] = useState<any>(null);
 
   // ── Form State ────────────────────────────────────────────
@@ -47,6 +76,15 @@ export default function DonorPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [image, setImage] = useState<string | null>(null);
+
+  // ── Location State ────────────────────────────────────────
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "success">("idle");
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [showMapPickerModal, setShowMapPickerModal] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const gpsWatchRef = useRef<number | null>(null);
 
   // ── Camera State ──────────────────────────────────────────
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -186,7 +224,102 @@ export default function DonorPage() {
     return { totalItems, totalQty, totalReservations, pickedUpItems, expiredItems, activeItems, savedQty, savedCO2, taxCredit, tonsApprox, rescueRate };
   }, [history]);
 
-  // ── Handlers ──────────────────────────────────────────────
+  // ── Reverse geocode lat/lng → human-readable address ────────────────────
+  const reverseGeocode = async (lat: number, lng: number) => {
+    setGeocoding(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const data = await res.json();
+      if (data?.display_name) {
+        // Build a compact address: road/suburb/neighbourhood, city
+        const a = data.address || {};
+        const parts = [
+          a.amenity || a.building || a.shop || a.leisure,
+          a.road || a.pedestrian || a.footway,
+          a.neighbourhood || a.suburb || a.quarter,
+          a.city || a.town || a.village || a.county,
+        ].filter(Boolean);
+        const compact = parts.slice(0, 3).join(", ");
+        // Only auto-fill if the donor hasn't typed anything
+        if (compact) setHall((prev) => prev.trim() === "" ? compact : prev);
+      }
+    } catch { /* silent — manual entry still works */ }
+    setGeocoding(false);
+  };
+
+  // ── GPS: watch + refine until accuracy ≤15m (mirrors LocationMapPicker) ──
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      setMessage("❌ Geolocation is not supported by your browser.");
+      return;
+    }
+
+    // Clear any existing watch
+    if (gpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+    }
+
+    setLocationStatus("loading");
+    setGpsAccuracy(null);
+    let bestAccuracy = Infinity;
+    let bestLat = 0;
+    let bestLng = 0;
+
+    const stopWatch = (finalLat: number, finalLng: number, finalAcc: number) => {
+      if (gpsWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsWatchRef.current);
+        gpsWatchRef.current = null;
+      }
+      setLatitude(finalLat);
+      setLongitude(finalLng);
+      setGpsAccuracy(Math.round(finalAcc));
+      setLocationStatus("success");
+      // Auto-fill the address field via reverse geocoding
+      reverseGeocode(finalLat, finalLng);
+    };
+
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+        setGpsAccuracy(Math.round(accuracy));
+
+        if (accuracy < bestAccuracy) {
+          bestAccuracy = accuracy;
+          bestLat = lat;
+          bestLng = lng;
+          // Update map position live while refining
+          setLatitude(lat);
+          setLongitude(lng);
+        }
+
+        // Stop once we have a good fix (≤15m = excellent for campus)
+        if (accuracy <= 15) stopWatch(lat, lng, accuracy);
+      },
+      (_err) => {
+        if (gpsWatchRef.current !== null) {
+          navigator.geolocation.clearWatch(gpsWatchRef.current);
+          gpsWatchRef.current = null;
+        }
+        setLocationStatus("idle");
+        setShowMapPickerModal(true); // fall back to manual map picker
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+    );
+
+    // Hard stop after 20s — use best result so far
+    setTimeout(() => {
+      if (gpsWatchRef.current !== null) {
+        stopWatch(bestLat || 0, bestLng || 0, bestAccuracy === Infinity ? 999 : bestAccuracy);
+      }
+    }, 20000);
+  };
+
+
+  // ── Handlers ──────────────────────────────────────────
   const handlePost = async () => {
     setLoading(true);
     setMessage("");
@@ -201,9 +334,12 @@ export default function DonorPage() {
         price: price ? Number(price) : 0,
         allergens,
         image_url: image,
+        latitude,
+        longitude,
       });
       setMessage("✅ Food posted successfully");
       setName(""); setQuantity(""); setPrice(""); setExpiry(""); setHall(""); setLandmark(""); setAllergens([]); setImage(null);
+      setLatitude(null); setLongitude(null); setLocationStatus("idle");
     } catch (err: any) {
       setMessage(`❌ ${err.response?.data?.message || "Failed to post food"}`);
     } finally {
@@ -235,7 +371,9 @@ export default function DonorPage() {
     setHall(item.dining_hall || "");
     setLandmark(item.landmark || "");
     setAllergens(Array.isArray(item.allergens) ? item.allergens : []);
-    setActiveTab("post");
+    // Reset location state — donor must re-confirm location for repost
+    setLatitude(null); setLongitude(null); setLocationStatus("idle");
+    switchTab("post");
     setMessage("✏️ Form pre-filled from selected item. Update details and publish.");
   };
 
@@ -290,7 +428,7 @@ export default function DonorPage() {
                   )}
                 </AnimatePresence>
                 <button
-                  onClick={() => setActiveTab(id)}
+                  onClick={() => switchTab(id)}
                   className={`group relative w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150 rounded-xl z-10 ${activeTab === id
                       ? "text-[#1a5c2e] dark:text-emerald-400 font-semibold"
                       : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-[#e5f5e9] dark:hover:bg-white/10"
@@ -409,6 +547,177 @@ export default function DonorPage() {
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Specific Landmark / Room</label>
                           <Input value={landmark} onChange={(e) => setLandmark(e.target.value)} placeholder="Room 402, near the west elevator" className="h-11 bg-white border-[#e2ede2] rounded-xl text-gray-800 placeholder:text-gray-300 shadow-sm" />
+                        </div>
+
+                        {/* ── Pickup Location (GPS + Map Picker) ── */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-[#1a5c2e]" /> Exact Pickup Location
+                          </label>
+
+                          {/* Status Card */}
+                          <div className={`rounded-xl border p-4 transition-all duration-300 ${
+                            locationStatus === "success"
+                              ? "bg-emerald-50 border-emerald-200"
+                              : locationStatus === "loading"
+                              ? "bg-blue-50 border-blue-200"
+                              : "bg-gray-50 border-gray-200"
+                          }`}>
+
+                            {/* idle */}
+                            {locationStatus === "idle" && (
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-700">Add pickup coordinates</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">Students will navigate directly to the exact pin</p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <motion.button
+                                    type="button"
+                                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                                    onClick={detectLocation}
+                                    className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm hover:bg-blue-700 transition-colors"
+                                  >
+                                    <Navigation className="w-3.5 h-3.5" /> GPS
+                                  </motion.button>
+                                  <motion.button
+                                    type="button"
+                                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                                    onClick={() => setShowMapPickerModal(true)}
+                                    className="flex items-center gap-1.5 bg-[#1a5c2e] text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm hover:bg-[#16502a] transition-colors"
+                                  >
+                                    <MapPin className="w-3.5 h-3.5" /> Pick on Map
+                                  </motion.button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* loading (GPS acquiring + refining) */}
+                            {locationStatus === "loading" && (
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin flex-shrink-0" />
+                                  <div>
+                                    <p className="text-sm font-semibold text-blue-700">
+                                      {gpsAccuracy !== null
+                                        ? `Refining GPS… ±${gpsAccuracy} m`
+                                        : "Acquiring GPS signal…"}
+                                    </p>
+                                    <p className="text-xs text-blue-500 mt-0.5">
+                                      {gpsAccuracy !== null && gpsAccuracy > 50
+                                        ? "Move to open sky for better accuracy"
+                                        : "Hold still — locking to your exact position"}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowMapPickerModal(true)}
+                                  className="text-xs font-bold text-blue-700 underline hover:text-blue-900 flex-shrink-0"
+                                >
+                                  Pick manually
+                                </button>
+                              </div>
+                            )}
+
+                            {/* success */}
+                            {locationStatus === "success" && latitude !== null && longitude !== null && (
+                              <div className="space-y-2.5">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                      <MapPin className="w-4 h-4 text-emerald-600" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-bold text-emerald-700">Location pinned ✓</p>
+                                        {gpsAccuracy !== null && (
+                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                            gpsAccuracy <= 20
+                                              ? "bg-emerald-100 text-emerald-700"
+                                              : gpsAccuracy <= 100
+                                              ? "bg-amber-100 text-amber-700"
+                                              : "bg-red-100 text-red-700"
+                                          }`}>
+                                            ±{gpsAccuracy}m
+                                          </span>
+                                        )}
+                                        {geocoding && (
+                                          <span className="text-[10px] text-blue-500 font-medium animate-pulse">Detecting address…</span>
+                                        )}
+                                      </div>
+                                      <p className="text-[11px] text-emerald-600 font-mono mt-0.5">
+                                        {latitude.toFixed(7)}, {longitude.toFixed(7)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowMapPickerModal(true)}
+                                      className="text-[11px] font-bold text-emerald-700 underline hover:text-emerald-900"
+                                    >
+                                      Edit on Map
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setLatitude(null); setLongitude(null); setLocationStatus("idle"); setGpsAccuracy(null); }}
+                                      className="text-[11px] font-bold text-gray-400 hover:text-red-500 transition-colors"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Low-accuracy warning */}
+                              {gpsAccuracy !== null && gpsAccuracy > 50 && (
+                                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                  <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                  <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                                    GPS accuracy is ±{gpsAccuracy} m — tap{" "}
+                                    <button type="button" onClick={() => setShowMapPickerModal(true)} className="font-black underline">Edit on Map</button>
+                                    {" "}and drag the pin to the exact spot.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            )}
+                          </div>
+
+                          {/* Leaflet map preview after location is set */}
+                          <AnimatePresence>
+                            {locationStatus === "success" && latitude !== null && longitude !== null && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="overflow-hidden rounded-xl border border-emerald-200"
+                              >
+                                <iframe
+                                  title="Pickup Location Preview"
+                                  src={`https://maps.google.com/maps?q=${latitude},${longitude}&z=19&output=embed`}
+                                  width="100%"
+                                  height="180"
+                                  style={{ border: 0 }}
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer-when-downgrade"
+                                  className="block"
+                                />
+                                <div className="bg-emerald-50 px-3 py-2 flex items-center justify-between">
+                                  <p className="text-[11px] text-emerald-700 font-semibold">Preview — students will be directed here</p>
+                                  <a
+                                    href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[11px] font-bold text-emerald-700 underline hover:text-emerald-900"
+                                  >
+                                    Open in Maps →
+                                  </a>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
 
                         <div className="space-y-1.5">
@@ -998,7 +1307,7 @@ export default function DonorPage() {
                           <p className="font-black text-gray-900 dark:text-gray-100 text-lg">Keep the impact growing!</p>
                           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Post your next batch of surplus food to earn more impact points.</p>
                         </div>
-                        <Button onClick={() => setActiveTab("post")} className="bg-[#1a5c2e] hover:bg-[#16502a] text-white font-bold rounded-full px-8 flex-shrink-0">
+                        <Button onClick={() => switchTab("post")} className="bg-[#1a5c2e] hover:bg-[#16502a] text-white font-bold rounded-full px-8 flex-shrink-0">
                           <PlusCircle className="w-4 h-4 mr-2" /> Post New Food
                         </Button>
                       </div>
@@ -1019,12 +1328,27 @@ export default function DonorPage() {
             { id: "history", icon: History },
             { id: "analytics", icon: BarChart3 },
           ] as const).map(({ id, icon: Icon }) => (
-            <Button key={id} variant="ghost" className={`flex-col h-14 w-14 ${activeTab === id ? "text-green-500" : "text-muted-foreground"}`} onClick={() => setActiveTab(id)}>
+            <Button key={id} variant="ghost" className={`flex-col h-14 w-14 ${activeTab === id ? "text-green-500" : "text-muted-foreground"}`} onClick={() => switchTab(id)}>
               <Icon size={20} />
             </Button>
           ))}
         </nav>
       </div>
+
+      {/* ── Location Map Picker Modal ── */}
+      <LocationMapPicker
+        open={showMapPickerModal}
+        onClose={() => setShowMapPickerModal(false)}
+        onConfirm={(lat, lng) => {
+          setLatitude(lat);
+          setLongitude(lng);
+          setGpsAccuracy(null); // map pin = no GPS accuracy reading
+          setLocationStatus("success");
+          reverseGeocode(lat, lng); // auto-fill Area field from pin location
+        }}
+        initialLat={latitude}
+        initialLng={longitude}
+      />
     </ProtectedRoute>
   );
 }

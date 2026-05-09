@@ -294,31 +294,33 @@ router.post("/verify-email", async (req, res) => {
 
 // ─────────────────────────────────────────────
 // GET /api/auth/leaderboard
-// Public — top 10 users by points, cached 60s
+// Public — top 50 students by points, cached 60s
+// Donors and admins are excluded.
 // ─────────────────────────────────────────────
 router.get("/leaderboard", async (req, res) => {
   try {
     // Check Redis cache first
-    const cached = await redis.get("leaderboard");
+    const cached = await redis.get("leaderboard:students");
     if (cached) {
       res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
       return res.json(cached);
     }
 
     const users = await User.findAll({
-      attributes: ["id", "email", "points"],
+      where: { role: "student" },          // students only — no donors, no admins
+      attributes: ["id", "name", "points"],
       order: [["points", "DESC"]],
-      limit: 10,
+      limit: 50,
     });
 
     const leaderboard = users.map((u) => ({
-      id: u.id,
-      points: u.points,
-      name: u.email.split("@")[0],
+      id:     u.id,
+      name:   u.name || "Anonymous",       // use real name field
+      points: u.points ?? 0,
     }));
 
-    // Cache for 60 seconds
-    await redis.set("leaderboard", leaderboard, { ex: 60 });
+    // Cache for 60 seconds (new key so old email-based cache is not served)
+    await redis.set("leaderboard:students", leaderboard, { ex: 60 });
     res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
     res.json(leaderboard);
   } catch (err) {

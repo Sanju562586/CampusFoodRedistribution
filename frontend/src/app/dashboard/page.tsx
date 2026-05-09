@@ -1,14 +1,33 @@
 "use client";
 
-import { useEffect, useState, useRef, Suspense, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState, useRef, Suspense, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/axios";
 import FluidFoodCard, { getFoodImage } from "@/components/FluidFoodCard";
 import ReserveModal from "@/components/ReserveModal";
 import BrandLogo from "@/components/BrandLogo";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { getAuth, clearAuth } from "@/lib/auth";
-import Pusher from "pusher-js";
+import PusherLib from "pusher-js";
+
+// ── Pusher singleton ────────────────────────────────────────────────────────
+// Created ONCE at module level so React StrictMode's double-mount/unmount
+// cycle never kills a mid-flight WebSocket handshake.
+// The connection persists for the lifetime of the browser tab.
+let _pusher: PusherLib | null = null;
+function getPusher(): PusherLib | null {
+  if (typeof window === "undefined") return null; // SSR guard
+  if (_pusher) return _pusher;
+  const key     = process.env.NEXT_PUBLIC_PUSHER_KEY;
+  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+  if (!key || !cluster) return null;
+  _pusher = new PusherLib(key, {
+    cluster,
+    // Allow Pusher to choose between ws/wss and xhr_streaming fallback automatically
+  });
+  return _pusher;
+}
+
 import ProfileTab from "@/components/ProfileTab";
 import { ModeToggle } from "@/components/mode-toggle";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
@@ -181,9 +200,67 @@ function ZeroWasteCard({ activeStudents }: { activeStudents: number }) {
   );
 }
 
+// ── AI Recommendation Card ─────────────────────────────────────────────────
+function AiRecCard({ food, onView }: { food: any; onView: (id: number) => void }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const hoursLeft = Math.max(0, (new Date(food.expiry_time).getTime() - Date.now()) / 3_600_000);
+  const urgency = hoursLeft < 2 ? "red" : hoursLeft < 4 ? "orange" : "green";
+  const urgencyColor = { red: "bg-red-100 text-red-700", orange: "bg-orange-100 text-orange-700", green: "bg-green-100 text-green-700" }[urgency];
+  const urgencyLabel = hoursLeft < 2 ? `${Math.round(hoursLeft * 60)}m left` : `${hoursLeft.toFixed(0)}h left`;
+
+  const handleOpen = () => {
+    onView(food.id);
+    setModalOpen(true);
+  };
+
+  return (
+    <>
+      <ReserveModal open={modalOpen} onClose={() => setModalOpen(false)} food={food} />
+      <motion.div
+        whileHover={{ y: -4, scale: 1.02 }}
+        transition={{ type: "spring", stiffness: 300, damping: 22 }}
+        onClick={handleOpen}
+        className="cursor-pointer rounded-2xl overflow-hidden border border-gray-100 dark:border-white/10 bg-white dark:bg-[#1a1a1a] shadow-sm hover:shadow-md transition-shadow h-full"
+      >
+        {/* Image */}
+        <div className="relative h-28 overflow-hidden">
+          <img src={getFoodImage(food)} alt={food.name} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+          {/* Urgency badge */}
+          <span className={`absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${urgencyColor}`}>
+            ⏰ {urgencyLabel}
+          </span>
+          {/* Price badge */}
+          <span className="absolute bottom-2 right-2 text-[11px] font-black text-white bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full">
+            ₹{food.price || 0}
+          </span>
+        </div>
+        {/* Body */}
+        <div className="p-3">
+          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight line-clamp-1">{food.name}</p>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 line-clamp-1">
+            📍 {food.dining_hall || food.location}
+          </p>
+          <div className="flex items-center justify-between mt-2.5">
+            <span className="text-[10px] text-gray-400">{food.quantity} left</span>
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+              className="text-[11px] font-bold text-white bg-[#22c55e] hover:bg-[#16a34a] px-3 py-1 rounded-full transition-colors"
+            >
+              Reserve
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 // ── Main content ───────────────────────────────────────────────────────────
 function DashboardContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialTab = searchParams.get("tab") === "profile" ? "profile" : "food";
   const [activeTab, setActiveTab] = useState(initialTab);
   const foodGridRef = useRef<HTMLDivElement>(null);
@@ -204,12 +281,31 @@ function DashboardContent() {
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const notifRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── AI Recommendations ───────────────────────────────────────
+  const [aiRecs, setAiRecs] = useState<any[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiReason, setAiReason] = useState("");
+  const [aiType, setAiType] = useState<"personalized" | "scored" | "info" | "">("");
+  const [showAiSection, setShowAiSection] = useState(true);
+
   // ── My Impact ───────────────────────────────────────────────
   const [impact, setImpact] = useState<any>(null);
 
+  // ── Sync tab to URL so refresh restores position ─────────────────────────
+  const switchTab = useCallback((tab: "food" | "profile") => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (tab === "food") params.delete("tab");
+    else params.set("tab", tab);
+    const query = params.toString();
+    router.replace(`/dashboard${query ? `?${query}` : ""}`, { scroll: false });
+  }, [router, searchParams]);
+
+  // Sync inbound URL changes (e.g. browser back/forward)
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab === "profile" || tab === "food") setActiveTab(tab);
+    else setActiveTab("food");
   }, [searchParams]);
 
   const filteredFoods = useMemo(() => {
@@ -265,6 +361,25 @@ function DashboardContent() {
     return [...foods].sort((a, b) => (b.Reservations?.length || 0) - (a.Reservations?.length || 0))[0];
   }, [foods]);
 
+  const fetchAiRecs = useCallback(async () => {
+    setAiLoading(true);
+    try {
+      const res = await api.get("/ai/recommend");
+      setAiRecs(res.data?.data || []);
+      setAiReason(res.data?.message || "");
+      setAiType(res.data?.type || "");
+    } catch {
+      setAiRecs([]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
+  // Record a food view to the behavior engine (fire-and-forget)
+  const recordView = useCallback((foodId: number) => {
+    api.post("/ai/record-view", { foodId }).catch(() => {});
+  }, []);
+
   const fetchData = async () => {
     try {
       const [foodRes, userRes, leaderboardRes] = await Promise.all([
@@ -290,44 +405,117 @@ function DashboardContent() {
     } catch { /* silent */ }
   };
 
+  // ── Effect 1: Initial data load + polling heartbeat ──────────────────────
+  // Polls every 30 s as a guaranteed fallback even if Pusher drops
   useEffect(() => {
     fetchData();
     fetchImpact();
-    const auth    = getAuth();
-    const userId  = auth?.id;
+    fetchAiRecs();
 
-    const pusher  = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-    });
+    // Polling heartbeat — catches any missed Pusher events
+    const pollInterval = setInterval(() => {
+      fetchData();       // refreshes food grid silently
+      fetchImpact();     // refreshes points / impact
+    }, 30_000);
 
-    // Public food channel — real-time food updates
+    return () => clearInterval(pollInterval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Effect 2: Pusher real-time subscriptions ──────────────────────────────
+  // Uses a module-level singleton — safe against React StrictMode double-mount.
+  // Cleanup only removes event bindings, never destroys the connection.
+  useEffect(() => {
+    const pusher = getPusher();
+    if (!pusher) return; // env vars missing or SSR
+
+    const auth   = getAuth();
+    const userId = auth?.id;
+
+    // ── Public food channel ───────────────────────────────────
     const channel = pusher.subscribe("food-channel");
-    channel.bind("food_update", (data: { foodId: number; quantity: number }) => {
-      setFoods((prev) => prev.map((food) => food.id === data.foodId ? { ...food, quantity: data.quantity } : food));
-    });
-    channel.bind("food_added", (newFood: any) => {
-      setFoods((prev) => [newFood, ...prev]);
-    });
 
-    // Private user channel — smart targeted notifications
+    const onFoodAdded = (newFood: any) => {
+      setFoods((prev) => {
+        if (prev.some((f) => f.id === newFood.id)) return prev;
+        return [newFood, ...prev];
+      });
+      fetchAiRecs();
+    };
+    const onFoodUpdate = (data: { foodId: number; quantity: number }) => {
+      setFoods((prev) =>
+        prev.map((f) => f.id === data.foodId ? { ...f, quantity: data.quantity } : f)
+      );
+    };
+    const onFoodRemoved = (data: { foodId: number }) => {
+      setFoods((prev) => prev.filter((f) => f.id !== data.foodId));
+      setAiRecs((prev) => prev.filter((f: any) => f.id !== data.foodId));
+    };
+
+    channel.bind("food_added",   onFoodAdded);
+    channel.bind("food_update",  onFoodUpdate);
+    channel.bind("food_removed", onFoodRemoved);
+
+    // ── Private user channel ──────────────────────────────────
     let userChannel: ReturnType<typeof pusher.subscribe> | null = null;
+
+    const onFoodNotif = (notif: any) => {
+      setNotifications((prev) => [{ ...notif, seen: false }, ...prev].slice(0, 20));
+      setShowNotifPanel(true);
+      if (notifRef.current) clearTimeout(notifRef.current);
+      notifRef.current = setTimeout(() => setShowNotifPanel(false), 8000);
+    };
+    const onReservationConfirmed = (data: { newPoints: number; foodName: string; code: string }) => {
+      setUserInfo((prev: any) => prev ? { ...prev, points: data.newPoints } : prev);
+      setNotifications((prev) => [{
+        id: `res_${Date.now()}`,
+        type: "reservation_confirmed",
+        title: "✅ Reservation Confirmed!",
+        message: `${data.foodName} · Code: ${data.code} · +10 pts`,
+        seen: false,
+        timestamp: new Date().toISOString(),
+      }, ...prev].slice(0, 20));
+      setShowNotifPanel(true);
+      if (notifRef.current) clearTimeout(notifRef.current);
+      notifRef.current = setTimeout(() => setShowNotifPanel(false), 6000);
+      fetchImpact();
+    };
+    const onPickupConfirmed = (data: { foodName: string }) => {
+      fetchImpact();
+      setNotifications((prev) => [{
+        id: `pickup_${Date.now()}`,
+        type: "pickup_confirmed",
+        title: "🎉 Pickup Confirmed!",
+        message: `${data.foodName || "Food item"} picked up successfully.`,
+        seen: false,
+        timestamp: new Date().toISOString(),
+      }, ...prev].slice(0, 20));
+      setShowNotifPanel(true);
+      if (notifRef.current) clearTimeout(notifRef.current);
+      notifRef.current = setTimeout(() => setShowNotifPanel(false), 6000);
+    };
+
     if (userId) {
       userChannel = pusher.subscribe(`user-${userId}`);
-      userChannel.bind("food_notification", (notif: any) => {
-        setNotifications(prev => [{ ...notif, seen: false }, ...prev].slice(0, 20));
-        setShowNotifPanel(true);
-        // Auto-hide panel after 8 seconds
-        if (notifRef.current) clearTimeout(notifRef.current);
-        notifRef.current = setTimeout(() => setShowNotifPanel(false), 8000);
-      });
+      userChannel.bind("food_notification",      onFoodNotif);
+      userChannel.bind("reservation_confirmed",  onReservationConfirmed);
+      userChannel.bind("pickup_confirmed",       onPickupConfirmed);
     }
 
+    // Cleanup: unbind listeners only — DO NOT call pusher.disconnect()
+    // Disconnecting would kill the singleton for every other component too.
     return () => {
-      channel.unbind_all();
-      channel.unsubscribe();
-      if (userChannel) { userChannel.unbind_all(); userChannel.unsubscribe(); }
+      channel.unbind("food_added",   onFoodAdded);
+      channel.unbind("food_update",  onFoodUpdate);
+      channel.unbind("food_removed", onFoodRemoved);
+      if (userChannel) {
+        userChannel.unbind("food_notification",     onFoodNotif);
+        userChannel.unbind("reservation_confirmed", onReservationConfirmed);
+        userChannel.unbind("pickup_confirmed",      onPickupConfirmed);
+      }
       if (notifRef.current) clearTimeout(notifRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
@@ -368,7 +556,7 @@ function DashboardContent() {
             titleClassName="text-[0.98rem]"
             wordmarkSize="sm"
           />
-          <button onClick={() => setActiveTab("food")} className="w-9 h-9 rounded-full bg-[#1a5c2e]/10 flex items-center justify-center">
+          <button onClick={() => switchTab("food")} className="w-9 h-9 rounded-full bg-[#1a5c2e]/10 flex items-center justify-center">
             <User className="w-5 h-5 text-[#1a5c2e]" />
           </button>
         </div>
@@ -504,7 +692,7 @@ function DashboardContent() {
 
           <div
             className="hidden sm:flex items-center gap-2.5 pl-3 ml-1 border-l border-gray-200 cursor-pointer group"
-            onClick={() => setActiveTab("profile")}
+            onClick={() => switchTab("profile")}
           >
             <div className="text-right">
               <p className="text-sm font-bold text-gray-800 dark:text-gray-100 leading-tight group-hover:text-[#1a5c2e] dark:group-hover:text-emerald-400 transition-colors">
@@ -653,6 +841,96 @@ function DashboardContent() {
             </div>
           </motion.div>
         </div>
+
+        {/* ══ AI RECOMMENDATIONS SECTION ══ */}
+        {showAiSection && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+            className="mb-8"
+          >
+            {/* Section Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-gray-900 dark:text-gray-50 leading-tight">AI Picks For You</h3>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                    {aiType === "personalized" ? "🧠 Personalised from your history" :
+                     aiType === "scored"       ? "⚡ Scored by expiry & availability" :
+                     "Powered by Gemini AI"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                  onClick={fetchAiRecs}
+                  disabled={aiLoading}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
+                >
+                  <Zap className={`w-3.5 h-3.5 ${aiLoading ? "animate-spin" : ""}`} />
+                  {aiLoading ? "Analysing..." : "Refresh"}
+                </motion.button>
+                <button onClick={() => setShowAiSection(false)} className="text-gray-300 hover:text-gray-500 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* AI Reason */}
+            {aiReason && !aiLoading && (
+              <motion.p
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="text-xs text-gray-500 dark:text-gray-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800/30 rounded-xl px-4 py-2.5 mb-4 leading-relaxed"
+              >
+                🧠 {aiReason}
+              </motion.p>
+            )}
+
+            {/* Loading Skeleton */}
+            {aiLoading && (
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {[1,2,3].map(i => (
+                  <div key={i} className="flex-shrink-0 w-56 h-48 bg-gray-100 dark:bg-white/5 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            )}
+
+            {/* AI Rec Cards */}
+            {!aiLoading && aiRecs.length === 0 && (
+              <div className="flex items-center gap-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/10 border border-violet-100 dark:border-violet-800/20 rounded-2xl px-5 py-4">
+                <Sparkles className="w-5 h-5 text-violet-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Building your taste profile…</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Reserve or view a few food items and the AI will start personalising recommendations just for you.</p>
+                </div>
+              </div>
+            )}
+
+            {!aiLoading && aiRecs.length > 0 && (
+              <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1" style={{ scrollSnapType: "x mandatory" }}>
+                <AnimatePresence>
+                  {aiRecs.map((food: any, idx: number) => (
+                    <motion.div
+                      key={food.id}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.06 }}
+                      className="flex-shrink-0 w-56"
+                      style={{ scrollSnapAlign: "start" }}
+                    >
+                      <AiRecCard food={food} onView={recordView} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* ── CATEGORY TABS + SORT ── */}
         <motion.div
@@ -825,7 +1103,9 @@ function DashboardContent() {
                   layout
                   className="h-full"
                 >
-                  <FluidFoodCard food={food} />
+                  <div onClick={() => recordView(food.id)}>
+                    <FluidFoodCard food={food} />
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>

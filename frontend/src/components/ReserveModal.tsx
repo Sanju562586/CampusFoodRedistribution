@@ -19,6 +19,10 @@ type Props = {
     expiry_time: string;
     allergens: string[];
     image_url?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    landmark?: string;
+    location?: string;
   };
 };
 
@@ -42,7 +46,12 @@ export default function ReserveModal({ open, onClose, food }: Props) {
   };
 
   const handleLocation = () => {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(food.dining_hall)}`, '_blank');
+    if (food.latitude != null && food.longitude != null) {
+      window.open(`https://www.google.com/maps?q=${food.latitude},${food.longitude}`, '_blank');
+    } else {
+      const query = [food.dining_hall, food.landmark, food.location].filter(Boolean).join(', ');
+      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
+    }
   };
 
   return (
@@ -99,13 +108,23 @@ export default function ReserveModal({ open, onClose, food }: Props) {
             </div>
 
             <div className="flex-1 p-8 space-y-6 overflow-y-auto">
-              <div className="group flex items-start gap-4 p-4 rounded-2xl bg-muted/40 hover:bg-muted/60 transition-colors border border-transparent hover:border-border/50">
+              <div
+                className="group flex items-start gap-4 p-4 rounded-2xl bg-muted/40 hover:bg-muted/60 transition-colors border border-transparent hover:border-border/50 cursor-pointer"
+                onClick={handleLocation}
+                title="Open in Google Maps"
+              >
                 <div className="bg-blue-500/10 p-3 rounded-2xl text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
                   <MapPin className="size-6" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-foreground text-sm uppercase tracking-wider opacity-70 mb-1">Location</h4>
                   <p className="font-medium text-lg leading-tight">{food.dining_hall}</p>
+                  {food.landmark && <p className="text-sm text-muted-foreground mt-0.5">{food.landmark}</p>}
+                  <p className="text-xs text-blue-500 mt-1 font-semibold flex items-center gap-1">
+                    {food.latitude != null && food.longitude != null
+                      ? `📍 GPS: ${food.latitude.toFixed(5)}, ${food.longitude.toFixed(5)} · Open Maps →`
+                      : "Tap to view on Google Maps →"}
+                  </p>
                 </div>
               </div>
 

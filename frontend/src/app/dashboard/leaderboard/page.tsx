@@ -130,8 +130,8 @@ function LeaderboardContent() {
   const rest = users.slice(3).filter((u) =>
     !search || u.name.toLowerCase().includes(search.toLowerCase())
   );
-  const myRank = users.findIndex((u) => u.name === currentUser?.name) + 1;
-  const myPoints = users.find((u) => u.name === currentUser?.name)?.points ?? currentUser?.points ?? 0;
+  const myRank = users.findIndex((u) => u.id === currentUser?.id) + 1;
+  const myPoints = users.find((u) => u.id === currentUser?.id)?.points ?? currentUser?.points ?? 0;
 
   const totalPoints = users.reduce((sum, u) => sum + (u.points ?? 0), 0);
 
@@ -305,7 +305,7 @@ function LeaderboardContent() {
                 ).map((user, idx) => {
                   const rank = idx + 1;
                   const { bg, glow, text } = getRankStyle(rank);
-                  const isMe = user.name === currentUser?.name;
+                  const isMe = user.id === currentUser?.id;
                   const initials = getInitials(user.name);
                   const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length];
                   const barWidth = users[0]?.points > 0 ? Math.round((user.points / users[0].points) * 100) : 0;
@@ -369,7 +369,7 @@ function LeaderboardContent() {
                 {/* Rank 4+ */}
                 {rest.map((user, idx) => {
                   const rank = idx + 4;
-                  const isMe = user.name === currentUser?.name;
+                  const isMe = user.id === currentUser?.id;
                   const initials = getInitials(user.name);
                   const avatarColor = AVATAR_COLORS[rank % AVATAR_COLORS.length];
                   const barWidth = users[0]?.points > 0 ? Math.round((user.points / users[0].points) * 100) : 0;

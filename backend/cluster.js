@@ -1,3 +1,33 @@
+// Override system DNS with Google Public DNS to ensure cloud hostnames resolve correctly
+const dns = require('dns');
+const originalLookup = dns.lookup;
+dns.setServers(['8.8.8.8', '8.8.4.4', '2001:4860:4860::8888']);
+
+dns.lookup = (hostname, options, callback) => {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  
+  const cb = (err, address, family) => {
+    callback(err, address, family);
+  };
+
+  if (hostname.includes('neon.tech')) {
+    dns.resolve4(hostname, (err, addresses) => {
+      if (!err && addresses && addresses.length > 0) {
+        if (options.all) {
+          return cb(null, addresses.map(a => ({ address: a, family: 4 })));
+        }
+        return cb(null, addresses[0], 4);
+      }
+      originalLookup(hostname, options, cb);
+    });
+  } else {
+    originalLookup(hostname, options, cb);
+  }
+};
+
 const cluster = require('cluster');
 const os = require('os');
 const process = require('process');

@@ -18,6 +18,8 @@ type Food = {
   landmark?: string;
   description?: string;
   category?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 const FALLBACK_IMAGES = [
@@ -147,10 +149,28 @@ export default function FluidFoodCard({ food }: { food: Food }) {
 
           {/* Location */}
           <div className="flex items-center gap-1.5 mb-4">
-            <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-            <span className="text-xs text-gray-600 dark:text-gray-400 font-medium truncate">
-              {locationLabel}
-            </span>
+            {food.latitude != null && food.longitude != null ? (
+              <a
+                href={`https://www.google.com/maps?q=${food.latitude},${food.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 group/loc hover:underline transition-all"
+                onClick={(e) => e.stopPropagation()}
+                title="Open in Google Maps"
+              >
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 group-hover/loc:text-emerald-700" />
+                <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold truncate group-hover/loc:text-emerald-900">
+                  {locationLabel} · View on Maps →
+                </span>
+              </a>
+            ) : (
+              <>
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                <span className="text-xs text-gray-600 dark:text-gray-400 font-medium truncate">
+                  {locationLabel}
+                </span>
+              </>
+            )}
           </div>
 
           {/* CTA Button */}

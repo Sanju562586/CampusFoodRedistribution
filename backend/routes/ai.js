@@ -492,4 +492,36 @@ router.post("/apply-suggestion", authenticate, authorize("admin"), async (req, r
   }
 });
 
+// ══════════════════════════════════════════════════════════════
+// POST /api/ai/record-view
+// Student only — passive behavioral signal from browsing
+// Called when a student views a food card detail
+// ══════════════════════════════════════════════════════════════
+router.post(
+  "/record-view",
+  authenticate,
+  authorize("student"),
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { foodId } = req.body;
+      if (!foodId) return res.status(400).json({ message: "foodId required" });
+
+      const food = await Food.findByPk(foodId, {
+        attributes: ["id", "name", "dining_hall", "location", "price", "allergens"],
+      });
+      if (!food) return res.status(404).json({ message: "Food not found" });
+
+      const user = await User.findByPk(userId, { attributes: ["dietary_preferences"] });
+      // Record as a view signal (weight=1) — fire-and-forget
+      userBehavior.recordInteraction(userId, food, user?.dietary_preferences || "Any", "viewed").catch(() => {});
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("record-view error:", err);
+      return res.status(500).json({ message: "Failed to record view" });
+    }
+  }
+);
+
 module.exports = router;

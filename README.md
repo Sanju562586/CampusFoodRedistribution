@@ -35,6 +35,8 @@
 The platform is built for scale and operational reliability, leveraging serverless-friendly infrastructure, message queue-based write protection, and a Redis-powered behavioral intelligence layer.
 
 ---
+## Deployment Link
+[Campus Food Redistribution](https://campus-food-redistribution.vercel.app)
 
 ## Key Features
 

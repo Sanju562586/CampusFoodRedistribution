@@ -37,27 +37,41 @@ router.get(
   async (req, res) => {
     try {
       const userId = req.user.id;
+      res.setHeader("Cache-Control", "private, max-age=10, s-maxage=20, stale-while-revalidate=60");
 
-      // 1. Load user profile (preferences + allergens)
-      const user = await User.findByPk(userId, {
-        attributes: ["dietary_preferences", "allergens", "name"],
-      });
+      // Parallelize DB and Redis fetches to minimize network RTT overhead
+      const [user, history, behaviorProfile, availableFood] = await Promise.all([
+        User.findByPk(userId, {
+          attributes: ["dietary_preferences", "allergens", "name"],
+        }),
+        Reservation.findAll({
+          where:   { userId },
+          order:   [["createdAt", "DESC"]],
+          limit:   20,
+          include: [{
+            model: Food,
+            attributes: ["name", "dining_hall", "location", "allergens"],
+          }],
+        }),
+        userBehavior.getUserProfile(userId),
+        Food.findAll({
+          where: {
+            quantity:    { [Op.gt]: 0 },
+            expiry_time: { [Op.gt]: new Date() },
+          },
+          include: [{
+            model: User,
+            as:    "donor",
+            attributes: ["name", "location"],
+          }],
+        }),
+      ]);
+
       const preferences = {
         diet:     user?.dietary_preferences || "Any",
         allergens: Array.isArray(user?.allergens) ? user.allergens : [],
         name:     user?.name || "Student",
       };
-
-      // 2. Load last 20 reservations as behavioral history
-      const history = await Reservation.findAll({
-        where:   { userId },
-        order:   [["createdAt", "DESC"]],
-        limit:   20,
-        include: [{
-          model: Food,
-          attributes: ["name", "dining_hall", "location", "allergens"],
-        }],
-      });
 
       const historyItems = history
         .filter(r => r.Food)
@@ -67,22 +81,6 @@ router.get(
           status: r.status,
           qty:    r.quantity,
         }));
-
-      // 3. Load Redis behavioral profile (top halls)
-      const behaviorProfile = await userBehavior.getUserProfile(userId);
-
-      // 4. Fetch currently available food
-      const availableFood = await Food.findAll({
-        where: {
-          quantity:    { [Op.gt]: 0 },
-          expiry_time: { [Op.gt]: new Date() },
-        },
-        include: [{
-          model: User,
-          as:    "donor",
-          attributes: ["name", "location"],
-        }],
-      });
 
       if (availableFood.length === 0) {
         activityLog.push({ type: "ai", level: "info", message: "AI recommend: no food available", actor: `User #${userId}`, role: "student", detail: "Empty inventory" });
@@ -217,7 +215,11 @@ router.get(
 
     // Check Redis cache first (5-min TTL)
     const cached = await userBehavior.getCachedUserImpact(userId);
-    if (cached) return res.json(cached);
+    if (cached) {
+      res.setHeader("Cache-Control", "private, max-age=15, s-maxage=60, stale-while-revalidate=120");
+      return res.json(cached);
+    }
+    res.setHeader("Cache-Control", "private, max-age=15, s-maxage=60, stale-while-revalidate=120");
 
     try {
       const CO2_PER_KG    = 2.5;

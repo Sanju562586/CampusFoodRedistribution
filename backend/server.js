@@ -138,6 +138,18 @@ app.use("/api/reservation", require("./routes/reservation"));
 app.use("/api/ai", require("./routes/ai"));
 
 // ─────────────────────────────────────────────
+// Health Check / Ping Endpoints for Render Uptime Monitors
+// ─────────────────────────────────────────────
+app.get("/api/health", (req, res) => {
+  res.setHeader("Cache-Control", "no-cache");
+  res.status(200).json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+app.get("/api/ping", (req, res) => {
+  res.status(200).send("pong");
+});
+
+// ─────────────────────────────────────────────
 // Global error handler
 // ─────────────────────────────────────────────
 app.use((err, req, res, next) => {
@@ -164,7 +176,7 @@ if (
       console.log(`✅ Worker listening on port ${PORT}`);
     });
   } else {
-    sequelize.sync({ alter: true }).then(() => {
+    sequelize.sync().then(() => {
       console.log("✅ Database synced");
       server.listen(PORT, "0.0.0.0", () => {
         console.log(`✅ Backend running on http://localhost:${PORT}`);

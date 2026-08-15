@@ -238,10 +238,10 @@ async function directFoodCreate(payload, pusherClient, res) {
     if (pusherClient) pusherClient.trigger("food-channel", "food_added", foodJson);
 
     // 🔔 Smart Notifications — fire targeted Pusher events to interested students
-    // We check the behavior preference index (O(1) Redis set lookups) to find
-    // users who have previously picked up food from the same location or same diet.
-    // Each matching user gets a private notification on their own channel.
-    _sendSmartNotifications(pusherClient, foodJson).catch(() => {});
+    // Non-blocking background task — fire and forget
+    setImmediate(() => {
+      _sendSmartNotifications(pusherClient, foodJson).catch(() => {});
+    });
 
     activityLog.push({
       type: "food_create",
@@ -286,47 +286,50 @@ async function _sendSmartNotifications(pusherClient, food) {
   let pusherCount = 0;
   let emailCount  = 0;
 
-  for (const u of allStudents) {
-    const profile = await userBehavior.getUserProfile(u.id).catch(() => ({
-      topHalls: [], topKeywords: [], topPriceRange: "any", preferredDiet: null, totalInteractions: 0,
-    }));
+  // Process all students in parallel using Promise.allSettled
+  await Promise.allSettled(
+    allStudents.map(async (u) => {
+      const profile = await userBehavior.getUserProfile(u.id).catch(() => ({
+        topHalls: [], topKeywords: [], topPriceRange: "any", preferredDiet: null, totalInteractions: 0,
+      }));
 
-    let score = userBehavior.computeMatchScore(food, profile, {
-      dietary_preferences: u.dietary_preferences,
-      allergens: u.allergens,
-    });
+      let score = userBehavior.computeMatchScore(food, profile, {
+        dietary_preferences: u.dietary_preferences,
+        allergens: u.allergens,
+      });
 
-    // New users with no behavior yet: use diet-based baseline so they still get notified
-    if (profile.totalInteractions === 0 && score > 0) {
-      score = Math.max(score, _baselineDietScore(food, u));
-    }
+      // New users with no behavior yet: use diet-based baseline so they still get notified
+      if (profile.totalInteractions === 0 && score > 0) {
+        score = Math.max(score, _baselineDietScore(food, u));
+      }
 
-    if (score === 0) continue; // allergen conflict \u2014 skip entirely
+      if (score === 0) return; // allergen conflict — skip
 
-    const notifTitle = score >= 70 ? "\ud83d\udd25 Perfect Match!" : score >= 40 ? "\ud83c\udf71 Great Match!" : "\ud83c\udf71 New Food Available!";
+      const notifTitle = score >= 70 ? "🔥 Perfect Match!" : score >= 40 ? "🍱 Great Match!" : "🍱 New Food Available!";
 
-    if (score >= PUSHER_THRESHOLD && pusherClient) {
-      pusherClient.trigger(`user-${u.id}`, "food_notification", {
-        id:         `notif_${Date.now()}_${u.id}`,
-        type:       "food_match",
-        title:      notifTitle,
-        message:    `${food.name} is available at ${food.dining_hall || food.location}`,
-        foodId:     food.id,
-        foodName:   food.name,
-        hall:       food.dining_hall || food.location,
-        quantity:   food.quantity,
-        expiresAt:  food.expiry_time,
-        matchScore: score,
-        timestamp:  new Date().toISOString(),
-      }).catch(() => {});
-      pusherCount++;
-    }
+      if (score >= PUSHER_THRESHOLD && pusherClient) {
+        pusherClient.trigger(`user-${u.id}`, "food_notification", {
+          id:         `notif_${Date.now()}_${u.id}`,
+          type:       "food_match",
+          title:      notifTitle,
+          message:    `${food.name} is available at ${food.dining_hall || food.location}`,
+          foodId:     food.id,
+          foodName:   food.name,
+          hall:       food.dining_hall || food.location,
+          quantity:   food.quantity,
+          expiresAt:  food.expiry_time,
+          matchScore: score,
+          timestamp:  new Date().toISOString(),
+        }).catch(() => {});
+        pusherCount++;
+      }
 
-    if (score >= EMAIL_THRESHOLD) {
-      await sendEmailNotification(u.email, u.name || "Student", food, score);
-      emailCount++;
-    }
-  }
+      if (score >= EMAIL_THRESHOLD) {
+        await sendEmailNotification(u.email, u.name || "Student", food, score);
+        emailCount++;
+      }
+    })
+  );
 
   activityLog.push({
     type: "ai", level: "info",
@@ -434,7 +437,7 @@ router.get(
       // No network calls whatsoever — handles 99%+ of requests here.
       const l1Data = foodCache.get("availableFood");
       if (l1Data !== undefined) {
-        res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+        res.setHeader("Cache-Control", "public, max-age=5, s-maxage=15, stale-while-revalidate=60");
         return res.json(l1Data);
       }
 
@@ -443,7 +446,7 @@ router.get(
       // all concurrent requests await the SAME promise — no duplication.
       if (_availableInflight) {
         const data = await _availableInflight;
-        res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+        res.setHeader("Cache-Control", "public, max-age=5, s-maxage=15, stale-while-revalidate=60");
         return res.json(data);
       }
 
@@ -452,7 +455,7 @@ router.get(
 
       try {
         const data = await _availableInflight;
-        res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+        res.setHeader("Cache-Control", "public, max-age=5, s-maxage=15, stale-while-revalidate=60");
         res.json(data);
       } finally {
         _availableInflight = null;

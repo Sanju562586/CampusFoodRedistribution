@@ -406,17 +406,19 @@ function DashboardContent() {
   };
 
   // ── Effect 1: Initial data load + polling heartbeat ──────────────────────
-  // Polls every 30 s as a guaranteed fallback even if Pusher drops
+  // Batch initial requests in parallel for sub-100ms UI render
   useEffect(() => {
-    fetchData();
-    fetchImpact();
-    fetchAiRecs();
+    Promise.allSettled([
+      fetchData(),
+      fetchImpact(),
+      fetchAiRecs(),
+    ]);
 
-    // Polling heartbeat — catches any missed Pusher events
+    // Polling heartbeat — catches any missed Pusher events every 45s
     const pollInterval = setInterval(() => {
       fetchData();       // refreshes food grid silently
       fetchImpact();     // refreshes points / impact
-    }, 30_000);
+    }, 45_000);
 
     return () => clearInterval(pollInterval);
   // eslint-disable-next-line react-hooks/exhaustive-deps

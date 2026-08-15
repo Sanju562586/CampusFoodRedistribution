@@ -31,49 +31,29 @@ async function authenticate(req, res, next) {
   const token = header.split(" ")[1];
 
   try {
-    // Stage 1: Cryptographic JWT verification — no network call, no DB hit
+    // Stage 1: Cryptographic JWT verification (instant in RAM, zero network calls)
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET || "CHANGE_ME_SET_JWT_SECRET_IN_ENV"
     );
 
     const sessionKey = `session:${decoded.id}`;
+    const revokedKey = `revoked:${decoded.id}`;
 
-    // ─── L1: In-process NodeCache (zero network) ──────────────────────
-    if (sessionCache.has(sessionKey)) {
-      req.user = decoded;
-      return next();
+    // L1 Check: If explicitly marked revoked in process memory, block
+    if (sessionCache.get(revokedKey)) {
+      return res.status(401).json({ message: "Session expired or revoked" });
     }
 
-    // ─── L2: Upstash Redis (cross-worker shared cache) ────────────────
-    const cachedSession = await redis.get(sessionKey);
-
-    if (cachedSession) {
-      // Warm L1 for subsequent requests in this worker
-      sessionCache.set(sessionKey, true);
-      req.user = decoded;
-      return next();
-    }
-
-    // ─── L3: DB cold path — verify user still exists ─────────────────
-    const user = await User.findByPk(decoded.id, {
-      attributes: ["id", "role"],
-    });
-
-    if (!user) {
-      return res.status(401).json({ message: "User account no longer exists" });
-    }
-
-    // Populate both caches to keep this user off the cold path
-    await redis.set(
-      sessionKey,
-      JSON.stringify({ id: user.id, role: user.role }),
-      { ex: 3600 }
-    );
-    sessionCache.set(sessionKey, true);
-
+    // Fast-path: Cryptographically valid JWT token signed with server secret
     req.user = decoded;
-    next();
+
+    // Warm L1 NodeCache if not set
+    if (!sessionCache.has(sessionKey)) {
+      sessionCache.set(sessionKey, true);
+    }
+
+    return next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid token" });
   }

@@ -10,10 +10,14 @@ const config = require(__dirname + '/../config/config.js')[env];
 const db = {};
 
 let sequelize;
-if (config.use_env_variable) {
+if (global._sequelizeInstance) {
+  sequelize = global._sequelizeInstance;
+} else if (config.use_env_variable) {
   sequelize = new Sequelize(process.env[config.use_env_variable], config);
+  global._sequelizeInstance = sequelize;
 } else {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
+  global._sequelizeInstance = sequelize;
 }
 
 fs

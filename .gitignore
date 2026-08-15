@@ -46,3 +46,11 @@ docs/
 
 # logs
 *.log
+
+# project reports
+min_project_report*
+Mini Project Report_Template (1).docx
+mini_project_report_index.md
+mini_project_report_part1.md
+mini_project_report_part2.md
+mini_project_report_part3.md

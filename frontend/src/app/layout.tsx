@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
-import AppAtmosphere from "@/components/AppAtmosphere";
-import PageTransition from "@/components/PageTransition";
 
 export const metadata: Metadata = {
   title: "Campus Food Network",
@@ -28,10 +26,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background text-foreground font-body app-shell">
+      <body className="bg-background text-foreground font-body">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          <AppAtmosphere />
-          <PageTransition>{children}</PageTransition>
+          {children}
           <Toaster position="top-center" richColors />
         </ThemeProvider>
       </body>

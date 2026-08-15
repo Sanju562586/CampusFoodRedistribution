@@ -6,11 +6,8 @@ const QRCode = require("qrcode");
 const { Client } = require("@upstash/qstash");
 const activityLog = require("../lib/activityLog");
 const userBehavior = require("../lib/userBehavior");
+const { foodCache, qrCache, redis } = require("../lib/localCache"); // shared
 
-const { Redis } = require("@upstash/redis");
-const { foodCache } = require("../lib/localCache");
-
-const redis = Redis.fromEnv();
 const router = express.Router();
 
 /**
@@ -138,7 +135,13 @@ async function directReservationCreate({ foodId, quantity, userId, code }, pushe
         const user = await User.findByPk(userId, { attributes: ["dietary_preferences"] });
         userBehavior.recordInteraction(userId, food, user?.dietary_preferences || "Any", "reserved").catch(() => {});
 
-        const qrCodeUrl = await QRCode.toDataURL(code);
+        // QR code — check cache first; QR is deterministic so we never need to regenerate
+        const qrCacheKey = `qr:${code}`;
+        let qrCodeUrl = qrCache.get(qrCacheKey);
+        if (!qrCodeUrl) {
+          qrCodeUrl = await QRCode.toDataURL(code);
+          qrCache.set(qrCacheKey, qrCodeUrl);
+        }
         if (res) {
             res.status(201).json({ message: "Reservation successful", reservation, qrCodeUrl });
         }
@@ -184,9 +187,14 @@ router.get(
                 order: [["createdAt", "DESC"]],
             });
 
-            // Attach QR codes
+            // Attach QR codes — served from qrCache when available (deterministic, same code = same image)
             const data = await Promise.all(reservations.map(async (r) => {
-                const qrCodeUrl = await QRCode.toDataURL(r.reservation_code);
+                const key = `qr:${r.reservation_code}`;
+                let qrCodeUrl = qrCache.get(key);
+                if (!qrCodeUrl) {
+                  qrCodeUrl = await QRCode.toDataURL(r.reservation_code);
+                  qrCache.set(key, qrCodeUrl);
+                }
                 return { ...r.toJSON(), qrCodeUrl };
             }));
 

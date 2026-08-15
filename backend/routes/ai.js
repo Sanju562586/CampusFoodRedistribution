@@ -17,10 +17,9 @@ const { Food, Reservation, User } = require("../models");
 const { Op } = require("sequelize");
 const activityLog   = require("../lib/activityLog");
 const userBehavior  = require("../lib/userBehavior");
-const { Redis }     = require("@upstash/redis");
+const { aiCache, redis } = require("../lib/localCache"); // shared caches
 
 const router = express.Router();
-const redis  = Redis.fromEnv();
 
 // ─── Gemini ────────────────────────────────────────────────
 const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -37,6 +36,17 @@ router.get(
   async (req, res) => {
     try {
       const userId = req.user.id;
+      const aiCacheKey = `airec:${userId}`;
+
+      // ── L1: aiCache (60s TTL) ─────────────────────────────────────────────
+      // Avoids 4 DB queries + Gemini round trip on every panel open.
+      // Invalidated in food.js when a new food item is posted.
+      const cachedRec = aiCache.get(aiCacheKey);
+      if (cachedRec !== undefined) {
+        res.setHeader("Cache-Control", "private, max-age=10, s-maxage=20, stale-while-revalidate=60");
+        return res.json(cachedRec);
+      }
+
       res.setHeader("Cache-Control", "private, max-age=10, s-maxage=20, stale-while-revalidate=60");
 
       // Parallelize DB and Redis fetches to minimize network RTT overhead
@@ -147,21 +157,27 @@ Do NOT include any other text or markdown.`;
 
         activityLog.push({ type: "ai", level: "success", message: "Gemini personalised recommendation served", actor: `User #${userId}`, role: "student", detail: `${finalData.length} items · ${reason.substring(0, 80)}` });
 
-        return res.json({
+        const responsePayload = {
           type:    "personalized",
           message: reason,
           data:    finalData,
-        });
+        };
+        // Populate L1 cache for 60s
+        aiCache.set(aiCacheKey, responsePayload);
+        return res.json(responsePayload);
 
       } catch (aiErr) {
         console.error("Gemini failed, falling back to score-ranking:", aiErr.message);
         activityLog.push({ type: "ai", level: "warning", message: "Gemini failed — score-ranking fallback", actor: `User #${userId}`, role: "student", detail: aiErr.message });
 
-        return res.json({
+        const fallbackPayload = {
           type:    "scored",
           message: `Top picks based on your history at ${behaviorProfile.topHalls[0] || "campus"}`,
           data:    scoreRanked.slice(0, 5),
-        });
+        };
+        // Cache even the fallback so repeated calls don’t hammer score computation
+        aiCache.set(aiCacheKey, fallbackPayload);
+        return res.json(fallbackPayload);
       }
 
     } catch (err) {

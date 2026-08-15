@@ -39,8 +39,23 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       defaultValue: 0
     },
+    // ── Google OAuth ─────────────────────────────────────────────────────────
+    // google_id: the "sub" claim from the Google ID token — globally unique per user.
+    // avatar_url: Google profile photo URL served from lh3.googleusercontent.com.
+    // Both are nullable so existing email/password accounts are unaffected.
+    google_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    },
+    avatar_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
     resetPasswordToken: DataTypes.STRING,
     resetPasswordExpires: DataTypes.DATE
+
   }, {
     sequelize,
     modelName: 'User',

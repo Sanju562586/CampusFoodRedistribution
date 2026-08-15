@@ -2,12 +2,10 @@ const express = require("express");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 const { Food, User } = require("../models");
 const { Op } = require("sequelize");
-const { Redis } = require("@upstash/redis");
-const { foodCache } = require("../lib/localCache");
+const { foodCache, adminFoodCache, aiCache, redis } = require("../lib/localCache"); // shared
 const cloudinary = require("../config/cloudinary");
 
-// Shared Redis client — REST-based, serverless-safe
-const redis = Redis.fromEnv();
+// Shared Redis — imported from localCache singleton
 
 const router = express.Router();
 const { Client, Receiver } = require("@upstash/qstash");
@@ -88,8 +86,8 @@ router.get("/stats", authenticate, authorize("admin"), async (req, res) => {
       return res.json(l1Stats);
     }
 
-    // L2: Upstash Redis
-    const cachedStats = await redis.get("stats");
+    // L2: Upstash Redis (safe if offline)
+    const cachedStats = await redis.get("stats").catch(() => null);
     if (cachedStats) {
       foodCache.set("stats", cachedStats);
       res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
@@ -106,7 +104,7 @@ router.get("/stats", authenticate, authorize("admin"), async (req, res) => {
 
     const statsData = { activeCount };
     foodCache.set("stats", statsData);
-    await redis.set("stats", statsData, { ex: 10 });
+    await redis.set("stats", statsData, { ex: 10 }).catch(() => {});
     res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
     res.json(statsData);
   } catch (err) {
@@ -257,7 +255,10 @@ async function directFoodCreate(payload, pusherClient, res) {
     // in this worker hits DB — not the stale in-RAM snapshot.
     foodCache.del("availableFood");
     foodCache.del("stats");
-    await redis.del("availableFood", "stats");
+    adminFoodCache.del("adminFood"); // invalidate admin panel cache
+    // Flush all cached AI recs so students get fresh recommendations
+    aiCache.flushAll();
+    await redis.del("availableFood", "stats").catch(() => {});
 
     if (res) return res.status(201).json(food);
   } catch (err) {
@@ -408,7 +409,9 @@ router.post("/worker-create", async (req, res) => {
     // Invalidate BOTH cache layers so the next request hits the DB.
     foodCache.del("availableFood");
     foodCache.del("stats");
-    await redis.del("availableFood", "stats");
+    adminFoodCache.del("adminFood");
+    aiCache.flushAll(); // new food → recs need to be recomputed
+    await redis.del("availableFood", "stats").catch(() => {});
 
     res.status(200).json({ message: "Worker successfully resolved operation." });
   } catch (err) {
@@ -477,7 +480,7 @@ router.get(
  */
 async function _fetchAndCacheAvailableFood() {
   // L2: Upstash Redis
-  const redisData = await redis.get("availableFood");
+  const redisData = await redis.get("availableFood").catch(() => null);
   if (redisData) {
     foodCache.set("availableFood", redisData);
     return redisData;
@@ -528,6 +531,13 @@ router.get(
   authorize(["admin"]),
   async (req, res) => {
     try {
+      // L1: Short 5s cache for admin panel — collapses burst refreshes without hiding mutations
+      const cached = adminFoodCache.get("adminFood");
+      if (cached !== undefined) {
+        res.setHeader("Cache-Control", "private, max-age=5, stale-while-revalidate=10");
+        return res.json(cached);
+      }
+
       const allFood = await Food.findAll({
         order: [["createdAt", "DESC"]],
         include: [
@@ -562,6 +572,8 @@ router.get(
         return { ...json, allergens: parsedAllergens };
       });
 
+      adminFoodCache.set("adminFood", formattedFood);
+      res.setHeader("Cache-Control", "private, max-age=5, stale-while-revalidate=10");
       res.json(formattedFood);
     } catch (err) {
       console.error("GET /food/all error:", err);
@@ -632,6 +644,8 @@ router.delete(
       // Invalidate BOTH cache layers after deletion.
       foodCache.del("availableFood");
       foodCache.del("stats");
+      adminFoodCache.del("adminFood");
+      aiCache.flushAll(); // deleted food → recs need to be recomputed
       await redis.del("availableFood", "stats");
 
       res.json({ message: "Food item deleted successfully" });

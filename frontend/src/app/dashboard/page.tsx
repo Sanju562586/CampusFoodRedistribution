@@ -406,13 +406,21 @@ function DashboardContent() {
   };
 
   // ── Effect 1: Initial data load + polling heartbeat ──────────────────────
-  // Batch initial requests in parallel for sub-100ms UI render
+  // Critical data (food grid + user profile + impact) loads in parallel first.
+  // AI recs are deferred with a short delay so the food grid is never blocked —
+  // they have a 60s server-side cache so the Gemini call only fires occasionally.
   useEffect(() => {
+    // Phase 1: critical path — food grid renders immediately
     Promise.allSettled([
       fetchData(),
       fetchImpact(),
-      fetchAiRecs(),
     ]);
+
+    // Phase 2: non-critical — deferred until after first paint
+    // Using setTimeout(0) yields to the browser so it can paint Phase 1 first.
+    const aiTimer = setTimeout(() => {
+      fetchAiRecs();
+    }, 0);
 
     // Polling heartbeat — catches any missed Pusher events every 45s
     const pollInterval = setInterval(() => {
@@ -420,7 +428,10 @@ function DashboardContent() {
       fetchImpact();     // refreshes points / impact
     }, 45_000);
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      clearTimeout(aiTimer);
+      clearInterval(pollInterval);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

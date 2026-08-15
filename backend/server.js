@@ -4,7 +4,7 @@ const cors = require("cors");
 const http = require("http");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
-const { Redis } = require("@upstash/redis");
+const { redis } = require("./lib/localCache"); // shared singleton — no extra Redis.fromEnv()
 const Pusher = require("pusher");
 
 const authRoutes = require("./routes/auth");
@@ -33,8 +33,10 @@ if (!process.env.QSTASH_TOKEN || process.env.QSTASH_TOKEN === "add_your_token_he
 const app = express();
 const server = http.createServer(app);
 
-// Shared Redis client — used by auth middleware + food routes only
-const redis = Redis.fromEnv();
+// ─────────────────────────────────────────────
+// Shared Redis — imported from localCache singleton (no extra connection)
+// ─────────────────────────────────────────────
+// redis is already imported above from localCache
 
 // ─────────────────────────────────────────────
 // Pusher — Real-time events
@@ -66,17 +68,19 @@ app.use(
       // Allow requests with no origin (server-to-server, curl, Postman)
       if (!incomingOrigin) return callback(null, true);
 
+      // Allow any local development origin (localhost or 127.0.0.1 on any port)
+      const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(incomingOrigin);
       // Allow any Vercel preview/production URL for this project
       const isVercelPreview = /^https:\/\/campus-food-redistribution[\w-]*\.vercel\.app$/.test(incomingOrigin);
       // Allow any Vercel URL belonging to the owner (sanju562586s-projects)
       const isVercelOwner  = /^https:\/\/[\w-]+sanju562586s-projects\.vercel\.app$/.test(incomingOrigin);
 
-      if (isVercelPreview || isVercelOwner || ALLOWED_ORIGINS.includes(incomingOrigin)) {
+      if (isLocalhost || isVercelPreview || isVercelOwner || ALLOWED_ORIGINS.includes(incomingOrigin)) {
         return callback(null, true);
       }
 
       console.warn(`[CORS] Blocked origin: ${incomingOrigin}`);
-      callback(new Error(`CORS: origin '${incomingOrigin}' is not allowed`));
+      callback(null, false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -92,6 +96,16 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(compression()); // Gzip all responses
+
+// ─────────────────────────────────────────────
+// Keep-alive header — tells Render's proxy / Vercel edge to reuse
+// TCP connections instead of opening a new one per request.
+// Cuts ~100ms of TCP handshake overhead on every API call.
+// ─────────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader("Connection", "keep-alive");
+  next();
+});
 
 
 // ─────────────────────────────────────────────
@@ -168,8 +182,11 @@ if (
   process.env.NODE_ENV !== "test" &&
   (require.main === module || process.env.CLUSTER_MODE === "true")
 ) {
+  // ── TCP keep-alive settings ──────────────────────────────────────────────
+  // keepAliveTimeout > 60s: required for Render/AWS ALB which has a 60s idle timeout.
+  // headersTimeout must always be > keepAliveTimeout to avoid race conditions.
   server.keepAliveTimeout = 65000;
-  server.headersTimeout = 66000;
+  server.headersTimeout   = 66000;
 
   if (process.env.CLUSTER_MODE === "true") {
     server.listen(PORT, "0.0.0.0", () => {

@@ -20,7 +20,14 @@ module.exports = {
                 require: true,
                 rejectUnauthorized: false,
                 servername: process.env.DB_HOSTNAME || process.env.DB_HOST
-            }
+            },
+            // Force IPv4 — Neon's pooler hostname resolves to both A (IPv4) and AAAA
+            // (IPv6) records. Node.js tries IPv6 first; if the local machine has no
+            // IPv6 route to the internet it throws ENETUNREACH. family:4 pins to IPv4.
+            family: 4,
+            // Fail fast on connection problems instead of hanging for 30s+
+            connectionTimeoutMillis: 10000,
+            statement_timeout:       30000,
         },
         // ─────────────────────────────────────────────────────────────
         // SERVERLESS-SAFE POOL SETTINGS
@@ -35,7 +42,7 @@ module.exports = {
         pool: {
             max: 3,
             min: 0,
-            acquire: 30000,
+            acquire: 15000, // fail fast — don't wait more than 15s for a connection slot
             idle: 1000,
             evict: 1000,
         }
@@ -74,13 +81,17 @@ module.exports = {
                 require: true,
                 rejectUnauthorized: false,
                 servername: process.env.DB_HOSTNAME || process.env.DB_HOST // SNI required for Neon
-            }
+            },
+            // Force IPv4 — same reasoning as development above
+            family: 4,
+            connectionTimeoutMillis: 10000,
+            statement_timeout:       30000,
         },
         // Same serverless-safe settings as development
         pool: {
             max: 3,
             min: 0,
-            acquire: 30000,
+            acquire: 15000,
             idle: 1000,
             evict: 1000,
         }

@@ -1,10 +1,8 @@
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
-const { Redis } = require("@upstash/redis");
-const { sessionCache } = require("../lib/localCache");
+const { sessionCache, redis } = require("../lib/localCache"); // shared caches
 
-// Shared Redis client — REST-based, safe in serverless
-const redis = Redis.fromEnv();
+// redis is imported from localCache singleton — no extra Redis.fromEnv() needed
 
 /**
  * authenticate

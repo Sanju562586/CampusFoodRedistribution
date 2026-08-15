@@ -2,15 +2,17 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const { Redis } = require("@upstash/redis");
+const { OAuth2Client } = require("google-auth-library");
 const { User, PendingUser } = require("../models");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 const activityLog = require("../lib/activityLog");
+const { userCache, redis } = require("../lib/localCache"); // shared caches
 
 const router = express.Router();
+// Google OAuth client — verifies ID tokens issued by Google Sign-In
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Shared Redis client for session management and caching
-const redis = Redis.fromEnv();
+// Shared Redis client for session management and caching (imported singleton)
 
 // ─────────────────────────────────────────────
 // Email Sender — Brevo (Sendinblue) HTTP API
@@ -66,9 +68,19 @@ router.use((req, res, next) => {
 // ─────────────────────────────────────────────
 // GET /api/auth/user/me
 // Authenticated user's own profile
+// L1: userCache (5 min) eliminates DB hit on every page load.
+// DB-unreachable fallback: returns JWT claims so the UI stays functional.
 // ─────────────────────────────────────────────
 router.get("/user/me", authenticate, async (req, res) => {
+  const cacheKey = `user:${req.user.id}`;
   try {
+    // L1: in-process NodeCache (sub-ms, zero network)
+    const cached = userCache.get(cacheKey);
+    if (cached !== undefined) {
+      res.setHeader("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+      return res.json(cached);
+    }
+
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -80,16 +92,56 @@ router.get("/user/me", authenticate, async (req, res) => {
       catch (e) { userJson.allergens = []; }
     }
 
+    // Populate L1 cache for the next 5 min
+    userCache.set(cacheKey, userJson);
+
+    res.setHeader("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
     res.json(userJson);
   } catch (err) {
+    // ── DB connection error fallback ─────────────────────────────────────────
+    // The JWT was already verified by `authenticate` so we KNOW this is a
+    // legitimate user. When the DB is unreachable (ENETUNREACH, timeout, etc.)
+    // return a minimal profile from JWT claims instead of a 500 so the UI
+    // stays functional during a temporary DB outage.
+    const isConnectionErr =
+      err?.name === "SequelizeConnectionError" ||
+      err?.name === "SequelizeConnectionRefusedError" ||
+      err?.name === "SequelizeHostNotFoundError" ||
+      err?.parent?.code === "ENETUNREACH" ||
+      err?.original?.code === "ENETUNREACH";
+
+    if (isConnectionErr) {
+      console.error("GET /user/me: DB unreachable — returning JWT fallback:", err.parent?.code || err.name);
+
+      // Minimal profile from the verified JWT payload.
+      // Missing fields (name, email, points) will be filled once DB recovers.
+      const fallback = {
+        id:                  req.user.id,
+        role:                req.user.role,
+        name:                null,
+        email:               null,
+        points:              0,
+        dietary_preferences: null,
+        allergens:           [],
+        _fallback:           true, // tells the client data is partial
+      };
+
+      // Short 30s TTL so the next request retries the DB quickly
+      userCache.set(cacheKey, fallback, 30);
+      res.setHeader("Cache-Control", "private, max-age=10, stale-while-revalidate=20");
+      return res.json(fallback);
+    }
+
     console.error("GET /user/me error:", err);
     res.status(500).json({ message: "Failed to fetch profile" });
   }
 });
 
+
 // ─────────────────────────────────────────────
 // PUT /api/auth/profile
 // Update dietary preferences and allergens
+// Invalidates userCache so the next /user/me reflects the change.
 // ─────────────────────────────────────────────
 router.put("/profile", authenticate, async (req, res) => {
   try {
@@ -103,6 +155,9 @@ router.put("/profile", authenticate, async (req, res) => {
 
     const userJson = user.toJSON();
     delete userJson.password;
+
+    // Invalidate cached profile so the next /user/me hits DB and gets fresh data
+    userCache.del(`user:${req.user.id}`);
 
     activityLog.push({ type: "profile_update", level: "info", message: "User updated their profile", actor: user.email, role: user.role, detail: `Diet: ${user.dietary_preferences} · Allergens: ${JSON.stringify(user.allergens)}` });
 
@@ -146,14 +201,12 @@ router.post("/login", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // ✅ Prime the session cache immediately after login
-    // This means the FIRST authenticated request after login
-    // is served from Redis — zero DB round-trip.
+    // ✅ Prime the session cache immediately after login (fire-and-forget, safe if Redis offline)
     await redis.set(
       `session:${user.id}`,
       JSON.stringify({ id: user.id, role: user.role }),
       { ex: 3600 } // 1 hour session cache
-    );
+    ).catch(() => {});
 
     activityLog.push({ type: "login", level: "success", message: `User logged in`, actor: user.email, role: user.role, detail: `ID: ${user.id}` });
 
@@ -299,8 +352,8 @@ router.post("/verify-email", async (req, res) => {
 // ─────────────────────────────────────────────
 router.get("/leaderboard", async (req, res) => {
   try {
-    // Check Redis cache first
-    const cached = await redis.get("leaderboard:students");
+    // Check Redis cache first (safe if Redis is offline/unreachable)
+    const cached = await redis.get("leaderboard:students").catch(() => null);
     if (cached) {
       res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
       return res.json(cached);
@@ -319,8 +372,8 @@ router.get("/leaderboard", async (req, res) => {
       points: u.points ?? 0,
     }));
 
-    // Cache for 60 seconds (new key so old email-based cache is not served)
-    await redis.set("leaderboard:students", leaderboard, { ex: 60 });
+    // Cache for 60 seconds (safe fallback if Redis offline)
+    await redis.set("leaderboard:students", leaderboard, { ex: 60 }).catch(() => {});
     res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
     res.json(leaderboard);
   } catch (err) {
@@ -360,8 +413,9 @@ router.delete("/users/:id", authenticate, authorize("admin"), async (req, res) =
       return res.status(404).json({ message: "User not found" });
     }
 
-    // ✅ Revoke the session immediately — token is rejected on next request
-    await redis.del(`session:${id}`);
+    // Revoke session + evict user profile cache immediately
+    await redis.del(`session:${id}`).catch(() => {});
+    userCache.del(`user:${id}`);
 
     activityLog.push({ type: "user_delete", level: "warning", message: `Admin deleted user account`, actor: req.user.email || `Admin #${req.user.id}`, role: "admin", detail: `Removed: ${targetUser?.email || `ID #${id}`} (${targetUser?.role || "?"})` });
 
@@ -491,8 +545,8 @@ router.post("/reset-password", async (req, res) => {
       user.resetPasswordExpires = null;
       await user.save();
 
-      // ✅ Invalidate all active sessions for this user after password reset
-      await redis.del(`session:${user.id}`);
+      // ✅ Invalidate all active sessions for this user after password reset (safe if Redis offline)
+      await redis.del(`session:${user.id}`).catch(() => {});
     }
 
     activityLog.push({ type: "password_reset", level: "success", message: "Password successfully reset", actor: email, role: users[0]?.role || "unknown", detail: `Session invalidated for ${users.length} account(s)` });
@@ -501,6 +555,132 @@ router.post("/reset-password", async (req, res) => {
   } catch (err) {
     console.error("POST /reset-password error:", err);
     res.status(500).json({ message: "Error resetting password" });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/auth/google
+// Google OAuth Sign-In / Sign-Up
+//
+// Flow:
+//   1. Frontend receives a Google credential (ID token) from @react-oauth/google
+//   2. Frontend POSTs { credential, role } here
+//   3. Backend verifies the ID token cryptographically with Google's public keys
+//   4. Extracts {sub, email, name, picture} from the verified payload
+//   5. Finds existing user by google_id OR by email (auto-links existing accounts)
+//   6. Creates a new user if none found (role defaults to "student")
+//   7. Issues your own JWT + primes Redis session — identical to /login
+// ─────────────────────────────────────────────
+router.post("/google", async (req, res) => {
+  const { credential, role: requestedRole } = req.body;
+
+  if (!credential) {
+    return res.status(400).json({ message: "Google credential token is required" });
+  }
+
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    console.error("[GOOGLE AUTH] GOOGLE_CLIENT_ID env var is not set!");
+    return res.status(500).json({ message: "Google authentication is not configured on the server" });
+  }
+
+  try {
+    // ── Step 1: Verify the Google ID token ────────────────────────────────
+    // This makes a call to Google's public key endpoint to verify the signature.
+    // Throws if the token is invalid, expired, or from a different client_id.
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ message: "Google account has no email address" });
+    }
+
+    // ── Step 2: Find or create user ────────────────────────────────────
+    // Priority:
+    //   a) Find by google_id (fastest path for returning Google users)
+    //   b) Find by email (auto-links existing email/password accounts)
+    //   c) Create new user
+    const { Op } = require("sequelize");
+    let user = await User.findOne({
+      where: {
+        [Op.or]: [
+          { google_id: googleId },
+          { email },
+        ],
+      },
+    });
+
+    const isNewUser = !user;
+    const role = requestedRole && ["student", "donor"].includes(requestedRole)
+      ? requestedRole
+      : "student";
+
+    if (!user) {
+      // Create a new Google-linked account
+      user = await User.create({
+        email,
+        name,
+        google_id: googleId,
+        avatar_url: picture || null,
+        role,
+        password: null, // no password for Google-only accounts
+        points: 0,
+      });
+      activityLog.push({ type: "register", level: "success", message: "New user via Google OAuth", actor: email, role, detail: `Google ID: ${googleId}` });
+    } else {
+      // Update google_id and avatar on the existing account if not already set
+      let changed = false;
+      if (!user.google_id) { user.google_id = googleId; changed = true; }
+      if (picture && !user.avatar_url) { user.avatar_url = picture; changed = true; }
+      if (changed) await user.save();
+    }
+
+    // ── Step 3: Issue JWT + prime Redis session ─────────────────────────
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET || "CHANGE_ME_SET_JWT_SECRET_IN_ENV",
+      { expiresIn: "7d" }
+    );
+
+    await redis.set(
+      `session:${user.id}`,
+      JSON.stringify({ id: user.id, role: user.role }),
+      { ex: 3600 }
+    ).catch(() => {});
+
+    // Populate userCache so the next /user/me is instant
+    const userJson = user.toJSON();
+    delete userJson.password;
+    userCache.set(`user:${user.id}`, userJson);
+
+    activityLog.push({ type: "login", level: "success", message: `Google OAuth login${isNewUser ? " (new user)" : ""}`, actor: email, role: user.role, detail: `ID: ${user.id}` });
+
+    res.json({
+      token,
+      user: {
+        id:         user.id,
+        role:       user.role,
+        points:     user.points,
+        name:       user.name,
+        email:      user.email,
+        avatar_url: user.avatar_url,
+      },
+      isNewUser,
+    });
+
+  } catch (err) {
+    // google-auth-library throws a plain Error with message "Token used too late",
+    // "Wrong number of segments", etc. when the token is invalid.
+    if (err.message?.includes("Token") || err.message?.includes("Invalid") || err.message?.includes("expired")) {
+      console.error("[GOOGLE AUTH] Token verification failed:", err.message);
+      return res.status(401).json({ message: "Invalid or expired Google token. Please try again." });
+    }
+    console.error("[GOOGLE AUTH] Unexpected error:", err);
+    res.status(500).json({ message: "Google authentication failed" });
   }
 });
 

@@ -572,10 +572,10 @@ router.post("/reset-password", async (req, res) => {
 //   7. Issues your own JWT + primes Redis session — identical to /login
 // ─────────────────────────────────────────────
 router.post("/google", async (req, res) => {
-  const { credential, role: requestedRole } = req.body;
+  const { credential, access_token, role: requestedRole } = req.body;
 
-  if (!credential) {
-    return res.status(400).json({ message: "Google credential token is required" });
+  if (!credential && !access_token) {
+    return res.status(400).json({ message: "Google credential or access_token is required" });
   }
 
   if (!process.env.GOOGLE_CLIENT_ID) {
@@ -584,20 +584,41 @@ router.post("/google", async (req, res) => {
   }
 
   try {
-    // ── Step 1: Verify the Google ID token ────────────────────────────────
-    // This makes a call to Google's public key endpoint to verify the signature.
-    // Throws if the token is invalid, expired, or from a different client_id.
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    let googleId, email, name, picture;
 
-    const payload = ticket.getPayload();
-    const { sub: googleId, email, name, picture } = payload;
+    // ── Step 1: Extract and verify payload from Google ────────────────────
+    if (credential) {
+      // Flow A: ID Token verification via google-auth-library
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      googleId = payload.sub;
+      email    = payload.email;
+      name     = payload.name;
+      picture  = payload.picture;
+    } else if (access_token) {
+      // Flow B: OAuth2 Access Token verification via Google UserInfo endpoint
+      const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+
+      if (!userInfoRes.ok) {
+        throw new Error("Invalid Google access token");
+      }
+
+      const userInfo = await userInfoRes.json();
+      googleId = userInfo.sub;
+      email    = userInfo.email;
+      name     = userInfo.name;
+      picture  = userInfo.picture;
+    }
 
     if (!email) {
       return res.status(400).json({ message: "Google account has no email address" });
     }
+
 
     // ── Step 2: Find or create user ────────────────────────────────────
     // Priority:
@@ -674,13 +695,25 @@ router.post("/google", async (req, res) => {
 
   } catch (err) {
     // google-auth-library throws a plain Error with message "Token used too late",
-    // "Wrong number of segments", etc. when the token is invalid.
-    if (err.message?.includes("Token") || err.message?.includes("Invalid") || err.message?.includes("expired")) {
-      console.error("[GOOGLE AUTH] Token verification failed:", err.message);
+    // "Wrong number of segments", "audience mismatch", etc. when the token is invalid.
+    console.error("[GOOGLE AUTH] Error details:", {
+      message: err.message,
+      stack: err.stack?.split("\n").slice(0, 4).join(" | "),
+      clientId: process.env.GOOGLE_CLIENT_ID || "NOT SET",
+    });
+
+    const msg = err.message || "";
+    if (
+      msg.includes("Token") ||
+      msg.includes("Invalid") ||
+      msg.includes("expired") ||
+      msg.includes("audience") ||
+      msg.includes("Wrong") ||
+      msg.includes("aud")
+    ) {
       return res.status(401).json({ message: "Invalid or expired Google token. Please try again." });
     }
-    console.error("[GOOGLE AUTH] Unexpected error:", err);
-    res.status(500).json({ message: "Google authentication failed" });
+    res.status(500).json({ message: "Google authentication failed", detail: msg });
   }
 });
 

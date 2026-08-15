@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import api from "@/lib/axios";
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
-import { GoogleLogin } from "@react-oauth/google";
+import { useGoogleLogin } from "@react-oauth/google";
 
 // ─── Google "G" SVG ─────────────────────────────────────────────────────────
 function GoogleIcon() {
@@ -143,47 +143,50 @@ function LoginContent() {
     }
   };
 
-  // ─── Google credential success (from GoogleLogin component) ───────────────
-  const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
-    if (!credentialResponse.credential) {
-      toast.error("Google did not return a credential. Please try again.");
-      return;
-    }
-    setIsGoogleLoading(true);
-    try {
-      const roleToSend = role !== "admin"
-        ? (mode === "register" ? googleRole : role)
-        : "student";
+  // ─── Google OAuth login via useGoogleLogin (standard OAuth popup) ────────
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setIsGoogleLoading(true);
+      try {
+        const roleToSend = role !== "admin"
+          ? (mode === "register" ? googleRole : role)
+          : "student";
 
-      const res = await api.post("/auth/google", {
-        credential: credentialResponse.credential,
-        role: roleToSend,
-      });
-
-      saveAuth(
-        { id: res.data.user.id, role: res.data.user.role, token: res.data.token, name: res.data.user.name },
-        true
-      );
-
-      if (res.data.isNewUser) {
-        toast.success(`Welcome to CampusFood, ${res.data.user.name}! 🎉`, {
-          description: "Your account has been created with Google.",
+        const res = await api.post("/auth/google", {
+          access_token: tokenResponse.access_token,
+          role: roleToSend,
         });
-      } else {
-        toast.success(`Welcome back, ${res.data.user.name}!`);
-      }
 
-      if (res.data.user.role === "admin") router.push("/admin");
-      else if (res.data.user.role === "donor") router.push("/donor");
-      else router.push("/dashboard");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Google sign-in failed", {
-        description: "Please try again or use email & password.",
-      });
-    } finally {
+        saveAuth(
+          { id: res.data.user.id, role: res.data.user.role, token: res.data.token, name: res.data.user.name },
+          true
+        );
+
+        if (res.data.isNewUser) {
+          toast.success(`Welcome to CampusFood, ${res.data.user.name}! 🎉`, {
+            description: "Your account has been created with Google.",
+          });
+        } else {
+          toast.success(`Welcome back, ${res.data.user.name}!`);
+        }
+
+        if (res.data.user.role === "admin") router.push("/admin");
+        else if (res.data.user.role === "donor") router.push("/donor");
+        else router.push("/dashboard");
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Google sign-in failed", {
+          description: "Please try again or use email & password.",
+        });
+      } finally {
+        setIsGoogleLoading(false);
+      }
+    },
+    onError: (err) => {
+      console.error("Google sign-in error:", err);
+      toast.error("Google sign-in cancelled or failed");
       setIsGoogleLoading(false);
-    }
-  };
+    },
+  });
 
   const isAdminMode = role === "admin";
 
@@ -433,42 +436,26 @@ function LoginContent() {
                     )}
                   </AnimatePresence>
 
-                  {/* Google button — styled wrapper around GoogleLogin */}
-                  {isGoogleLoading ? (
-                    <div className="w-full h-14 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center gap-3 text-white font-medium">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      <span>Signing in with Google...</span>
-                    </div>
-                  ) : (
-                    <div
-                      className="relative w-full h-14 rounded-full overflow-hidden group"
-                      style={{ isolation: "isolate" }}
-                    >
-                      {/* Visual layer — always visible */}
-                      <div className="absolute inset-0 rounded-full bg-white/[0.06] border border-white/10 group-hover:bg-white/[0.12] group-hover:border-white/20 transition-all flex items-center justify-center gap-3 text-white font-medium pointer-events-none z-10">
+                  {/* Native Google OAuth popup button */}
+                  <button
+                    type="button"
+                    onClick={() => handleGoogleLogin()}
+                    disabled={isGoogleLoading || isLoading}
+                    className="relative w-full h-14 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-3 text-white font-medium cursor-pointer overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isGoogleLoading ? (
+                      <div className="flex items-center gap-3">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        <span>Signing in with Google...</span>
+                      </div>
+                    ) : (
+                      <>
                         <GoogleIcon />
                         <span>Continue with Google</span>
-                        {/* Shimmer */}
-                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 rounded-full" />
-                      </div>
-
-                      {/* Real GoogleLogin button — fills the container and is invisible.
-                          The visual layer above is purely decorative (pointer-events:none).
-                          Clicking anywhere on the container triggers Google's popup. */}
-                      <div className="absolute inset-0 opacity-0 z-20 flex items-center justify-center">
-                        <GoogleLogin
-                          onSuccess={handleGoogleSuccess}
-                          onError={() => toast.error("Google sign-in failed. Please try again.")}
-                          useOneTap={false}
-                          theme="filled_black"
-                          size="large"
-                          width="400"
-                          shape="rectangular"
-                          text={mode === "login" ? "signin_with" : "signup_with"}
-                        />
-                      </div>
-                    </div>
-                  )}
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 rounded-full pointer-events-none" />
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
             </div>

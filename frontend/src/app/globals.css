@@ -123,10 +123,32 @@
 /* ─── Base ───────────────────────────────────────────────── */
 @layer base {
   * { @apply border-border outline-ring/50; }
+  html { scroll-behavior: smooth; }
   body { @apply bg-background text-foreground; }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+.app-shell { isolation: isolate; }
+.app-atmosphere { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: #eef8ee; }
+.app-orb { position: absolute; border-radius: 999px; filter: blur(3px); opacity: .5; }
+.app-orb--violet { width: min(46vw, 680px); height: min(46vw, 680px); left: -16vw; top: -22vh; background: radial-gradient(circle at 35% 35%, #c4b5fd, #7c3aed 48%, transparent 72%); }
+.app-orb--lime { width: min(42vw, 620px); height: min(42vw, 620px); right: -12vw; bottom: -18vh; background: radial-gradient(circle at 45% 45%, #bef264, #22c55e 48%, transparent 72%); }
+.app-orb--coral { width: min(30vw, 430px); height: min(30vw, 430px); right: 18vw; top: 28vh; background: radial-gradient(circle, #fdba74, #fb7185 52%, transparent 72%); opacity: .28; }
+.app-grid { position: absolute; inset: 0; opacity: .24; background-image: linear-gradient(rgba(22,101,52,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(22,101,52,.08) 1px, transparent 1px); background-size: 46px 46px; mask-image: linear-gradient(to bottom, black, transparent 85%); }
+.dark .app-atmosphere { background: #07120d; }
+.dark .app-grid { opacity: .12; }
+
+.tilt-surface { position: relative; transform-style: preserve-3d; will-change: transform; }
+.tilt-surface__glare { position: absolute; width: 58%; aspect-ratio: 1; translate: -50% -50%; border-radius: 999px; pointer-events: none; opacity: .25; filter: blur(26px); background: radial-gradient(circle, rgba(255,255,255,.75), transparent 68%); mix-blend-mode: overlay; }
+.app-route { min-height: inherit; }
+.app-route :is(.glass-card, .glass-food-card, .glass-panel, .glass-action-card) { transform-style: preserve-3d; transition: transform .32s cubic-bezier(.22, 1, .36, 1), box-shadow .32s ease, border-color .32s ease; }
+.app-route input, .app-route textarea, .app-route select { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, background-color .2s ease; }
+.app-route input:focus, .app-route textarea:focus, .app-route select:focus { transform: translateY(-1px); }
+@media (hover: hover) and (pointer: fine) {
+  .app-route :is(.glass-card, .glass-food-card, .glass-panel, .glass-action-card):hover { transform: translateY(-5px) rotateX(1deg); }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 
 /* ════════════════════════════════════════════════════════════
    MAC-OS GLASSMORPHISM — pure frosted glass, no colored blobs.

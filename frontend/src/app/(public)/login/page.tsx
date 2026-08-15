@@ -8,10 +8,11 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { saveAuth, getAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, ShieldCheck, User, Store, Sparkles, CheckCircle2 } from "lucide-react";
 import api from "@/lib/axios";
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
 import { useGoogleLogin } from "@react-oauth/google";
+import TiltSurface from "@/components/TiltSurface";
 
 // ─── Google "G" SVG ─────────────────────────────────────────────────────────
 function GoogleIcon() {
@@ -143,7 +144,7 @@ function LoginContent() {
     }
   };
 
-  // ─── Google OAuth login via useGoogleLogin (standard OAuth popup) ────────
+  // ─── Google OAuth login ──────────────────────────────────────────────────
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setIsGoogleLoading(true);
@@ -191,333 +192,320 @@ function LoginContent() {
   const isAdminMode = role === "admin";
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#1a1a1a] relative overflow-hidden p-4 font-sans">
-      {/* Background gradients */}
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#07120d] text-white relative overflow-hidden p-4 sm:p-6 font-sans">
+      {/* Background radial gradients */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-20%] left-[-20%] w-[800px] h-[800px] bg-purple-600/30 rounded-full blur-[150px]" />
-        <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-orange-500/20 rounded-full blur-[150px]" />
+        <div className="absolute top-[-15%] left-[-15%] w-[700px] h-[700px] bg-emerald-500/20 rounded-full blur-[160px]" />
+        <div className="absolute bottom-[-15%] right-[-15%] w-[700px] h-[700px] bg-indigo-600/25 rounded-full blur-[160px]" />
+        <div className="absolute top-[40%] right-[30%] w-[450px] h-[450px] bg-lime-400/15 rounded-full blur-[140px]" />
       </div>
 
+      {/* Back Button */}
       <Button
         variant="ghost"
-        className="absolute top-8 left-8 z-50 text-white/50 hover:text-white hover:bg-white/10"
+        className="absolute top-6 left-6 z-50 text-white/70 hover:text-white hover:bg-white/10 rounded-xl"
         onClick={() => router.push("/")}
       >
         <ArrowLeft className="size-5 mr-2" /> Back to Home
       </Button>
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="relative z-10 w-full max-w-[1100px] lg:aspect-[16/9] min-h-[500px] lg:min-h-[600px] flex flex-col lg:flex-row rounded-[30px] lg:rounded-[40px] overflow-hidden shadow-2xl border border-white/5 bg-white/5 backdrop-blur-2xl my-10 lg:my-0 mt-20 lg:mt-0"
+        initial={{ opacity: 0, scale: 0.96, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full max-w-[1060px] my-12 lg:my-0"
       >
-        {/* Loading overlay — register only */}
-        {isLoading && mode === "register" && !showOtpInput && (
-          <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-[#1a1a1a] p-8 rounded-3xl border border-white/10 shadow-2xl max-w-sm w-full flex flex-col items-center"
-            >
-              <div className="relative w-20 h-20 mb-6">
-                <div className="absolute inset-0 border-4 border-white/10 rounded-full" />
-                <div className="absolute inset-0 border-4 border-orange-500 rounded-full border-t-transparent animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Sending One-Time Password</h3>
-              <p className="text-white/60 text-sm">Please wait while we send a verification code to your email...</p>
-            </motion.div>
-          </div>
-        )}
-
-        {/* Success overlay */}
-        {isSuccess && (
-          <div className="absolute inset-0 z-50 bg-[#1a1a1a]/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center">
-            <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", damping: 15 }}
-              className="flex flex-col items-center"
-            >
-              <div className="w-24 h-24 rounded-full bg-green-500 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(34,197,94,0.4)]">
-                <motion.svg className="w-12 h-12 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                  <motion.path
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.5, delay: 0.2 }}
-                    d="M5 13l4 4L19 7"
-                  />
-                </motion.svg>
-              </div>
-              <h3 className="text-3xl font-bold text-white mb-2">Verification Successful!</h3>
-              <p className="text-white/60 text-lg">Redirecting to login...</p>
-            </motion.div>
-          </div>
-        )}
-
-        {/* LEFT COLUMN: Form */}
-        <div className="w-full lg:w-[55%] p-6 py-12 lg:p-12 flex flex-col items-center relative bg-gradient-to-br from-white/5 to-transparent overflow-y-auto max-h-[100%] scrollbar-hide">
-          <div className="max-w-[400px] mx-auto w-full">
-            <div className="mb-8">
-              <h2 className="text-4xl font-bold text-white mb-2">
-                {mode === "login" ? "Welcome back" : showOtpInput ? "Verify Email" : "Get Started"}
-              </h2>
-              <p className="text-white/50">
-                {showOtpInput ? `Enter the OTP sent to ${email}` : "Please enter your account details"}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {/* Role switcher (login mode) */}
-              {!showOtpInput && mode === "login" && (
-                <div className="flex justify-center mb-2">
-                  <div className="bg-white/10 p-1 rounded-full flex gap-1">
-                    {(["student", "donor", "admin"] as const).map((r) => (
-                      <button
-                        key={r}
-                        onClick={() => setRole(r)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                          role === r ? "bg-white text-black shadow-lg" : "text-white/60 hover:text-white hover:bg-white/5"
-                        }`}
-                      >
-                        {r.charAt(0).toUpperCase() + r.slice(1)}
-                      </button>
-                    ))}
+        <TiltSurface intensity={4} className="w-full">
+          <div className="relative w-full flex flex-col lg:flex-row rounded-[2.5rem] overflow-hidden border border-white/15 bg-white/[0.04] backdrop-blur-2xl shadow-[0_32px_90px_rgba(0,0,0,0.6)]">
+            
+            {/* Loading Overlay */}
+            {isLoading && mode === "register" && !showOtpInput && (
+              <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center">
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-[#0e1e17] p-8 rounded-3xl border border-white/15 shadow-2xl max-w-sm w-full flex flex-col items-center"
+                >
+                  <div className="relative w-16 h-16 mb-5">
+                    <div className="absolute inset-0 border-4 border-white/10 rounded-full" />
+                    <div className="absolute inset-0 border-4 border-emerald-400 rounded-full border-t-transparent animate-spin" />
                   </div>
-                </div>
-              )}
+                  <h3 className="text-xl font-bold text-white mb-1">Sending OTP Code</h3>
+                  <p className="text-white/60 text-xs">Sending a 6-digit verification code to your email...</p>
+                </motion.div>
+              </div>
+            )}
 
-              {/* OTP input */}
-              {showOtpInput ? (
-                <Input
-                  type="text"
-                  placeholder="Enter 6-digit OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6 text-center text-xl tracking-widest"
-                  maxLength={6}
-                />
-              ) : (
-                <>
-                  {mode === "register" && (
-                    <Input
-                      placeholder="Full Name / Organization"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6"
-                    />
-                  )}
-
-                  <Input
-                    type="email"
-                    placeholder="Email Address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6"
-                  />
-
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6 pr-12"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/60 hover:bg-black p-2 rounded-full focus:outline-none transition-all shadow-sm"
-                    >
-                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
+            {/* Success Overlay */}
+            {isSuccess && (
+              <div className="absolute inset-0 z-50 bg-[#07120d]/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center">
+                <motion.div
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="flex flex-col items-center"
+                >
+                  <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center mb-5 shadow-[0_0_40px_rgba(34,197,94,0.5)]">
+                    <CheckCircle2 className="w-10 h-10 text-black" />
                   </div>
+                  <h3 className="text-2xl font-black text-white mb-1">Email Verified!</h3>
+                  <p className="text-white/60 text-sm">Redirecting to sign in...</p>
+                </motion.div>
+              </div>
+            )}
 
-                  {mode === "register" && (
-                    <div className="relative">
-                      <Input
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm Password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="h-14 rounded-full bg-black/40 border-transparent text-white placeholder:text-white/20 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-white/20 px-6 pr-12"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/60 hover:bg-black p-2 rounded-full focus:outline-none transition-all shadow-sm"
-                      >
-                        {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
+            {/* LEFT COLUMN: Form */}
+            <div className="w-full lg:w-[55%] p-6 sm:p-10 lg:p-12 flex flex-col justify-center relative bg-gradient-to-br from-white/[0.06] to-transparent">
+              <div className="max-w-[400px] mx-auto w-full">
+                <div className="mb-6">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-lime-300/20 bg-lime-300/10 text-xs font-bold text-lime-200 uppercase tracking-widest mb-3">
+                    <Sparkles className="w-3.5 h-3.5" /> Portal Access
+                  </span>
+                  <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                    {mode === "login" ? "Welcome Back" : showOtpInput ? "Verify Email" : "Create Account"}
+                  </h2>
+                  <p className="text-white/55 text-sm mt-1">
+                    {showOtpInput ? `Enter the verification code sent to ${email}` : "Enter your credentials to access the campus network"}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Role Switcher Pill */}
+                  {!showOtpInput && mode === "login" && (
+                    <div className="flex justify-center mb-4">
+                      <div className="bg-white/10 p-1.5 rounded-full flex gap-1 w-full border border-white/10">
+                        {(["student", "donor", "admin"] as const).map((r) => (
+                          <button
+                            key={r}
+                            onClick={() => setRole(r)}
+                            className={`flex-1 py-2 rounded-full text-xs font-bold transition-all relative ${
+                              role === r ? "text-black font-extrabold" : "text-white/60 hover:text-white"
+                            }`}
+                          >
+                            {role === r && (
+                              <motion.div
+                                layoutId="login-role-pill"
+                                className="absolute inset-0 bg-gradient-to-r from-lime-200 via-emerald-300 to-lime-300 rounded-full shadow-md"
+                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                              />
+                            )}
+                            <span className="relative z-10">{r.charAt(0).toUpperCase() + r.slice(1)}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </>
-              )}
 
-              {!showOtpInput && (
-                <div className="flex justify-between items-center text-sm">
-                  <label
-                    className="flex items-center gap-2 text-white/50 cursor-pointer select-none"
-                    onClick={() => setRememberMe(!rememberMe)}
-                  >
-                    <div className={`w-4 h-4 rounded border transition-colors ${rememberMe ? "bg-white border-white" : "border-white/20"}`} />
-                    Keep me logged in
-                  </label>
-                  <span
-                    onClick={() => setShowForgotPassword(true)}
-                    className="text-white/50 underline cursor-pointer hover:text-white"
-                  >
-                    Forgot Password?
-                  </span>
-                </div>
-              )}
+                  {/* Form Inputs */}
+                  {showOtpInput ? (
+                    <Input
+                      type="text"
+                      placeholder="ENTER 6-DIGIT OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      className="h-14 rounded-2xl bg-black/40 border-white/15 text-white placeholder:text-white/30 text-center text-xl font-mono tracking-[0.3em] font-bold focus:border-lime-300"
+                      maxLength={6}
+                    />
+                  ) : (
+                    <>
+                      {mode === "register" && (
+                        <Input
+                          placeholder="Full Name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="h-13 rounded-2xl bg-black/40 border-white/15 text-white placeholder:text-white/30 focus:border-lime-300 px-5 text-sm"
+                        />
+                      )}
 
-              {/* Primary CTA */}
-              <Button
-                onClick={handleSubmit}
-                disabled={isLoading || isGoogleLoading}
-                className="w-full h-14 rounded-full bg-gradient-to-r from-[#FF8C6B] to-[#FF6B6B] hover:opacity-90 transition-opacity text-black font-semibold text-lg shadow-xl shadow-orange-500/20 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-black border-t-transparent" />
-                    <span>Processing...</span>
-                  </div>
-                ) : (
-                  mode === "login" ? "Sign in" : showOtpInput ? "Verify Email" : "Register Now"
-                )}
-              </Button>
+                      <Input
+                        type="email"
+                        placeholder="Campus Email Address"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="h-13 rounded-2xl bg-black/40 border-white/15 text-white placeholder:text-white/30 focus:border-lime-300 px-5 text-sm"
+                      />
 
-              {showOtpInput && (
-                <Button variant="ghost" onClick={() => setShowOtpInput(false)} className="w-full text-white/50 hover:text-white">
-                  Cancel Verification
-                </Button>
-              )}
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="h-13 rounded-2xl bg-black/40 border-white/15 text-white placeholder:text-white/30 focus:border-lime-300 px-5 pr-12 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
 
-              {/* ── Google Sign-In ─────────────────────────────────────────── */}
-              {/* Hidden for admin — admins must use email/password for security */}
-              {!isAdminMode && !showOtpInput && (
-                <div className="space-y-3 pt-1">
-                  {/* Divider */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-white/10" />
-                    <span className="text-white/30 text-xs font-medium">or continue with</span>
-                    <div className="flex-1 h-px bg-white/10" />
-                  </div>
+                      {mode === "register" && (
+                        <div className="relative">
+                          <Input
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="Confirm Password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="h-13 rounded-2xl bg-black/40 border-white/15 text-white placeholder:text-white/30 focus:border-lime-300 px-5 pr-12 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+                          >
+                            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
 
-                  {/* Role picker — only visible in register mode */}
-                  <AnimatePresence>
-                    {mode === "register" && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
+                  {!showOtpInput && (
+                    <div className="flex justify-between items-center text-xs text-white/60 pt-1">
+                      <label
+                        className="flex items-center gap-2 cursor-pointer select-none hover:text-white"
+                        onClick={() => setRememberMe(!rememberMe)}
                       >
-                        <p className="text-white/40 text-xs text-center mb-2">Sign up as:</p>
-                        <div className="flex gap-2">
+                        <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${rememberMe ? "bg-lime-300 border-lime-300 text-black font-bold" : "border-white/30"}`}>
+                          {rememberMe && "✓"}
+                        </div>
+                        Keep me signed in
+                      </label>
+                      <span
+                        onClick={() => setShowForgotPassword(true)}
+                        className="underline cursor-pointer hover:text-lime-200 transition-colors"
+                      >
+                        Forgot Password?
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Submit CTA Button */}
+                  <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={isLoading || isGoogleLoading}
+                      className="w-full h-13 rounded-2xl bg-gradient-to-r from-lime-300 via-emerald-400 to-lime-200 hover:from-lime-200 hover:to-emerald-300 text-[#07120d] font-extrabold text-base shadow-lg shadow-lime-300/20 transition-all disabled:opacity-60"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+                          <span>Processing...</span>
+                        </div>
+                      ) : (
+                        mode === "login" ? "Sign In" : showOtpInput ? "Verify Code" : "Create Account"
+                      )}
+                    </Button>
+                  </motion.div>
+
+                  {/* Google OAuth Section */}
+                  {!isAdminMode && !showOtpInput && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="text-white/40 text-xs font-medium uppercase tracking-wider">or</span>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
+
+                      {mode === "register" && (
+                        <div className="flex gap-2 mb-2">
                           {(["student", "donor"] as const).map((r) => (
                             <button
                               key={r}
                               onClick={() => setGoogleRole(r)}
-                              className={`flex-1 py-2 rounded-full text-sm font-medium transition-all border ${
+                              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all border ${
                                 googleRole === r
-                                  ? "bg-white text-black border-white"
-                                  : "text-white/60 border-white/10 hover:border-white/30 hover:text-white"
+                                  ? "bg-lime-300 text-black border-lime-300"
+                                  : "text-white/60 border-white/10 hover:border-white/30"
                               }`}
                             >
-                              {r.charAt(0).toUpperCase() + r.slice(1)}
+                              Sign up as {r.charAt(0).toUpperCase() + r.slice(1)}
                             </button>
                           ))}
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                      )}
 
-                  {/* Native Google OAuth popup button */}
-                  <button
-                    type="button"
-                    onClick={() => handleGoogleLogin()}
-                    disabled={isGoogleLoading || isLoading}
-                    className="relative w-full h-14 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-3 text-white font-medium cursor-pointer overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isGoogleLoading ? (
-                      <div className="flex items-center gap-3">
-                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        <span>Signing in with Google...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <GoogleIcon />
-                        <span>Continue with Google</span>
-                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 rounded-full pointer-events-none" />
-                      </>
-                    )}
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => handleGoogleLogin()}
+                        disabled={isGoogleLoading || isLoading}
+                        className="relative w-full h-13 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 transition-all flex items-center justify-center gap-3 text-white font-bold text-sm cursor-pointer overflow-hidden group disabled:opacity-50"
+                      >
+                        {isGoogleLoading ? (
+                          <div className="flex items-center gap-2">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            <span>Connecting to Google...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <GoogleIcon />
+                            <span>Continue with Google</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {role !== "admin" && (
+                  <p className="text-center mt-6 text-white/40 text-xs">
+                    {mode === "login" ? "Don't have an account?" : "Already registered?"}
+                    <span
+                      onClick={() => { setMode(mode === "login" ? "register" : "login"); setShowOtpInput(false); }}
+                      className="text-lime-200 ml-1.5 cursor-pointer font-bold hover:underline"
+                    >
+                      {mode === "login" ? "Register now" : "Sign in here"}
+                    </span>
+                  </p>
+                )}
+              </div>
             </div>
 
-            {role !== "admin" && (
-              <p className="text-center mt-6 text-white/30 text-sm">
-                {mode === "login" ? "Don't have an account?" : "Already have an account?"}
-                <span
-                  onClick={() => { setMode(mode === "login" ? "register" : "login"); setShowOtpInput(false); }}
-                  className="text-white ml-2 cursor-pointer font-medium hover:underline"
-                >
-                  {mode === "login" ? "Register" : "Login"}
-                </span>
-              </p>
-            )}
-          </div>
-        </div>
+            {/* RIGHT COLUMN: Interactive Showcase */}
+            <div className="hidden lg:flex w-[45%] bg-gradient-to-br from-[#0e2419] to-[#07120d] relative p-10 flex-col justify-between items-center overflow-hidden border-l border-white/10">
+              <div className="absolute inset-0 pointer-events-none opacity-40">
+                <div className="absolute top-[20%] right-[10%] w-[250px] h-[250px] bg-lime-400/20 rounded-full blur-3xl" />
+                <div className="absolute bottom-[10%] left-[10%] w-[250px] h-[250px] bg-indigo-500/20 rounded-full blur-3xl" />
+              </div>
 
-        {/* RIGHT COLUMN */}
-        <div className="hidden lg:flex w-[45%] bg-[#0f0f0f] relative p-12 flex-col justify-center items-center">
-          <div className="absolute inset-0 opacity-30">
-            <div className="absolute top-[30%] left-[20%] w-[300px] h-[300px] border border-purple-500/30 rounded-full" />
-            <div className="absolute top-[35%] left-[25%] w-[200px] h-[200px] border border-blue-500/30 rounded-full" />
-            <div className="absolute bottom-0 right-0 w-full h-[300px] bg-gradient-to-t from-[#0f0f0f] to-transparent z-10" />
-          </div>
+              {/* Live Impact Card */}
+              <div className="relative z-10 text-left w-full space-y-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-lime-300/30 bg-lime-300/10 text-xs font-bold text-lime-200">
+                  <Sparkles className="w-3.5 h-3.5" /> Direct Campus Impact
+                </div>
+                <h3 className="text-3xl font-extrabold leading-tight text-white">
+                  Turn Surplus Meals Into Shared Impact.
+                </h3>
+                <p className="text-white/60 text-sm leading-relaxed">
+                  Join hundreds of students and local dining halls redirecting fresh meals across campus every day.
+                </p>
+              </div>
 
-          <div className="relative z-20 max-w-[320px]">
-            <h3 className="text-4xl font-serif text-white mb-6 leading-tight">
-              What our <br /> Students Said.
-            </h3>
-            <p className="text-xl text-white/80 italic font-light leading-relaxed mb-6">
-              "Finding affordable meals on campus used to be a struggle. CampusFood changed everything—now I save money and help reduce waste."
-            </p>
-            <div>
-              <h4 className="font-bold text-white">Verified Student</h4>
-              <span className="text-white/40 text-sm">Campus Resident</span>
-            </div>
-            <div className="flex gap-4 mt-12">
-              <Button size="icon" variant="outline" className="rounded-lg border-white/10 hover:bg-white/10 text-white">
-                <ArrowLeft className="size-5" />
-              </Button>
-              <Button size="icon" className="rounded-lg bg-green-900/50 hover:bg-green-900 text-green-400">
-                <ArrowLeft className="size-5 rotate-180" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="absolute bottom-10 right-[-30px] bg-white text-black p-6 rounded-3xl w-[280px] shadow-2xl skew-x-[-2deg] hover:translate-y-[-5px] transition-transform">
-            <h4 className="font-bold text-lg mb-2 leading-tight">Get your right food at the right place</h4>
-            <p className="text-xs text-black/60 mb-4">Be among the first students to experience the easiest way to find meals.</p>
-            <div className="flex -space-x-2">
-              {[1, 2, 3].map((i) => (
-                <img
-                  key={i}
-                  src={`https://ui-avatars.com/api/?name=User+${i}&background=random`}
-                  alt="User"
-                  className="w-8 h-8 rounded-full border-2 border-white object-cover"
-                />
-              ))}
+              {/* Floating 3D Stat Box */}
+              <motion.div
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="relative z-10 w-full glass-card p-5 rounded-2xl border border-white/15 shadow-2xl bg-white/[0.08]"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Campus Network</span>
+                  <span className="size-2 rounded-full bg-lime-300 shadow-[0_0_10px_#bef264]" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black text-lime-200">1,024 kg</span>
+                  <span className="text-xs text-white/60 font-semibold">rescued this month</span>
+                </div>
+                <div className="mt-3 pt-3 border-t border-white/10 flex items-center gap-2 text-xs text-white/70">
+                  <CheckCircle2 className="w-4 h-4 text-lime-300" />
+                  <span>Real-time instant QR pickup code verification</span>
+                </div>
+              </motion.div>
             </div>
           </div>
-        </div>
+        </TiltSurface>
       </motion.div>
 
       <ForgotPasswordModal isOpen={showForgotPassword} onClose={() => setShowForgotPassword(false)} />
@@ -529,8 +517,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen w-full flex items-center justify-center bg-[#1a1a1a]">
-          <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <div className="min-h-screen w-full flex items-center justify-center bg-[#07120d]">
+          <div className="w-10 h-10 border-4 border-lime-300 border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >

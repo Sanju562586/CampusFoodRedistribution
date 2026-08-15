@@ -35,6 +35,8 @@
 The platform is built for scale and operational reliability, leveraging serverless-friendly infrastructure, message queue-based write protection, and a Redis-powered behavioral intelligence layer.
 
 ---
+## Deployment Link
+[Campus Food Redistribution](https://campus-food-redistribution.vercel.app)
 
 ## Key Features
 
@@ -109,40 +111,10 @@ Every significant platform event is captured in an in-memory ring-buffer (500-ev
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND (Next.js)                       │
-│   Student Dashboard  │  Donor Portal  │  Admin Command Center    │
-│   (Recommendations,  │  (Post Food,   │  (User Mgmt, Analytics,  │
-│   Notifications,     │  Verification) │  AI Engine, Logs)        │
-│   My Impact)         │                │                          │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ REST API + JWT Auth
-┌──────────────────────────────▼──────────────────────────────────┐
-│                    BACKEND (Express.js)                          │
-│                                                                  │
-│  /api/auth   /api/food   /api/reservation   /api/ai             │
-│                                                                  │
-│  ┌──────────────────┐   ┌──────────────────────────────────┐    │
-│  │  Upstash QStash  │   │     AI Analytics Engine          │    │
-│  │  (Message Queue) │   │  ┌────────────┐  ┌───────────┐   │    │
-│  │  Food creation & │   │  │  Gemini    │  │  Score    │   │    │
-│  │  Reservation     │   │  │  1.5 Flash │  │  Ranking  │   │    │
-│  │  writes          │   │  │  (Primary) │  │ (Fallback)│   │    │
-│  └──────────────────┘   │  └────────────┘  └───────────┘   │    │
-│                          └──────────────────────────────────┘    │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │               Upstash Redis                               │    │
-│  │  Session cache │ Behavioral profiles │ Pref indexes       │    │
-│  │  API cache     │ Impact cache        │ Ring-buffer logs   │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                  │
-│  ┌──────────────┐   ┌─────────────┐   ┌──────────────────────┐  │
-│  │   Sequelize  │   │   Pusher    │   │     Cloudinary        │  │
-│  │  SQLite/PG   │   │  Real-time  │   │   Image Storage       │  │
-│  └──────────────┘   └─────────────┘   └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+<img width="653" height="639" alt="SystemArchitectureFinal drawio" src="https://github.com/user-attachments/assets/b6e16b9e-48b8-4477-b17e-93a8c5a66915" />
+
+
 
 ---
 
